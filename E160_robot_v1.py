@@ -36,10 +36,9 @@ class E160_robot:
         self.last_simulated_encoder_R = 0
         self.last_simulated_encoder_L = 0
         
-        self.Kpho = 3#2#1.0
-        self.Kalpha = 8#10#2.0
-        self.Kbeta = -1.5#-4#-0.5
-        self.Kp = 2.5
+        self.Kpho = 1#1.0
+        self.Kalpha = 2#2.0
+        self.Kbeta = -2#-0.5
         self.max_velocity = 0.1
         self.point_tracked = True
         self.encoder_per_sec_to_rad_per_sec = 10
@@ -48,9 +47,8 @@ class E160_robot:
         self.path_tracking = False
 
         if self.environment.robot_mode == "SIMULATION MODE":
-            self.distance_threshold = 0.001
-            self.angle_threshold = 0.01
-            self.point_turn_threshold = 0.0005
+            self.distance_threshold = 0.005
+            self.angle_threshold = 0.005
         else:
             self.distance_threshold = 0.05
             self.angle_threshold = 0.1
@@ -126,21 +124,9 @@ class E160_robot:
 
 
     def path_tracker(self):
-        point_list1 = [(0.2, 0, 0),
-                        (0, 0, 0),
-                        (.2, .2, math.pi/2),
-                        (0, 0, 0),
-                        (-.2, 0, 0),
-                        (0, 0, 0),
-                        (-.2, 0, 3.14),
-                        (0, 0, 0)]
-
-        point_list2 = [(.2, .2, math.pi),
-                        (0, .4, math.pi),
-                        (-.2, .2, -math.pi/2),
-                        (0, 0, 0)]
-
-        point_list = point_list2
+        point_list = [(0.2, 0, 0),
+                        (.4, .2, 0),
+                        (0, -.2, math.pi/2)]
 
         if self.point_tracked:
             if self.current_point + 1 != len(point_list):
@@ -165,47 +151,42 @@ class E160_robot:
             ############ Student code goes here ############################################
             delta_x = self.state_des.x - self.state_est.x
             delta_y = self.state_des.y - self.state_est.y
+            delta_theta = abs(self.angle_wrap(self.state_des.theta)) - abs(self.state_est.theta)
 
-            delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+            self.state_est.theta = self.angle_wrap(self.state_est.theta)
 
-            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-            rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+            alpha = self.angle_wrap(-self.state_est.theta + math.atan2(delta_y, delta_x))
 
-            if rho <= self.point_turn_threshold and delta_theta > self.angle_threshold:
-                print('Rho', rho)
-                print('Delta Theta', delta_theta)
-                print('Point Turning')
-                desiredV = 0
-                desiredW = self.Kp*(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+            if alpha >= -math.pi/2 and alpha <= math.pi/2:
+                rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                alpha = self.angle_wrap(-self.state_est.theta + math.atan2(delta_y, delta_x))
+                beta = self.angle_wrap(-self.state_est.theta - alpha)
+                beta = self.angle_wrap(beta +self.angle_wrap(self.state_des.theta))
+
+                desiredV = self.Kpho*rho
+                desiredW = self.Kalpha*alpha + self.Kbeta*beta
             else:
-                if alpha > -math.pi/2 and alpha <= math.pi/2:
-                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+                rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                alpha = self.angle_wrap(-self.state_est.theta + math.atan2(-delta_y, -delta_x))
+                beta = self.angle_wrap(-self.state_est.theta - alpha)
+                beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
 
-                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+                desiredV = -self.Kpho*rho
+                desiredW = self.Kalpha*alpha + self.Kbeta*beta
 
-                    desiredV = self.Kpho*rho
-                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                    #print('Forward loop')
-                else:
-                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
-                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+            print("Omega Des", desiredW)
+            print("V Des", desiredV)
 
-                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+            #if desiredV > 0:
+            #    desiredV = min(desiredV, self.max_velocity)
+            #else:
+            #    desiredV = max(desiredV, -self.max_velocity)
 
-                    desiredV = -self.Kpho*rho
-                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                    #print('Reverse Loop')
-
-            # A positive omega des should result in a positive spin
             desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
             desiredRotRateL = -desiredV/self.wheel_radius - self.radius*desiredW/self.wheel_radius
 
 
             if abs(desiredRotRateR*self.wheel_radius) > self.max_velocity or abs(desiredRotRateL*self.wheel_radius) > self.max_velocity:
-                #print('Max Velocity at', rho, delta_theta)
                 scaling_factor = self.max_velocity/max(abs(desiredRotRateR*self.wheel_radius), abs(desiredRotRateL*self.wheel_radius))
                 desiredRotRateR *= scaling_factor
                 desiredRotRateL *= scaling_factor
@@ -214,10 +195,9 @@ class E160_robot:
             desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
             desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
 
-            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
-                print('Reached Point')
-                desiredWheelSpeedR = 0
-                desiredWheelSpeedL = 0
+            print('Distance to point: ', rho)
+            print('Delta Theta: ', delta_theta)
+            if rho < self.distance_threshold and delta_theta < self.angle_threshold:
                 self.point_tracked = True
             
             
@@ -262,7 +242,7 @@ class E160_robot:
         
     def make_headers(self):
         f = open(self.file_name, 'a+')
-        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} {5:^1} \n'.format('V', 'W', 'RW', 'LW', 'A', 'B'))
+        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} \n'.format('R1', 'R2', 'R3', 'RW', 'LW'))
         f.close()
 
         
@@ -271,7 +251,7 @@ class E160_robot:
         f = open(self.file_name, 'a+')
         
         # edit this line to have data logging of the data you care about
-        data = [str(x) for x in []]
+        data = [str(x) for x in [1,2,3,4,5]]
         
         f.write(' '.join(data) + '\n')
         f.close()
