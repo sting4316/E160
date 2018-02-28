@@ -37,8 +37,8 @@ class E160_robot:
         self.last_simulated_encoder_L = 0
         
         self.Kpho = 1#3.79#1.0
-        self.Kalpha = 1.3#3.8#2.0
-        self.Kbeta = -0.5#-4#-0.5
+        self.Kalpha = 2#3.8#2.0
+        self.Kbeta = -.5#-4#-0.5
         self.max_velocity = 0.1
         self.point_tracked = True
         self.encoder_per_sec_to_rad_per_sec = 10
@@ -48,7 +48,7 @@ class E160_robot:
 
         if self.environment.robot_mode == "SIMULATION MODE":
             self.distance_threshold = 0.005
-            self.angle_threshold = 0.012
+            self.angle_threshold = 0.008
         else:
             self.distance_threshold = 0.05
             self.angle_threshold = 0.1
@@ -154,22 +154,12 @@ class E160_robot:
 
             delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
 
-            alpha = self.angle_wrap(-self.state_est.theta + math.atan2(delta_y, delta_x))
+            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
 
             #print('Pre Alpha', alpha)
 
-            
 
             if alpha > -math.pi/2 and alpha <= math.pi/2:
-                '''if (delta_x < .01 and delta_y < .01):
-                    print("yasssssssssss")
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-                    beta = self.angle_wrap(-self.state_est.theta -alpha)
-
-                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
-                    desiredV = 0
-                    desiredW = -3*beta
-                else:'''
                 rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
                 alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
                 beta = self.angle_wrap(-self.state_est.theta -alpha)
@@ -180,28 +170,15 @@ class E160_robot:
                 desiredW = self.Kalpha*alpha + self.Kbeta*beta
                 print('Forward loop')
             else:
-                '''if (delta_x < .01 and delta_y < .01):
-                    print("yassssssssssssssssssssss")
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
-                    beta = -self.angle_wrap(-self.state_est.theta-alpha)
-
-                    beta = self.angle_wrap(beta - self.angle_wrap(self.state_des.theta))
-                    desiredV = 0
-                    desiredW = -3*beta
-                else:'''
-        
                 rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
                 alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
-                beta = -self.angle_wrap(-self.state_est.theta-alpha)
+                beta = self.angle_wrap(-self.state_est.theta -alpha)
 
-                beta = self.angle_wrap(beta - self.angle_wrap(self.state_des.theta))
+                beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
 
-        
-
-
-                    desiredV = -self.Kpho*rho
-                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                    print('Reverse Loop')
+                desiredV = -self.Kpho*rho
+                desiredW = self.Kalpha*alpha + self.Kbeta*beta
+                print('Reverse Loop')
 
             # A positive omega des should result in a positive spin
             desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
