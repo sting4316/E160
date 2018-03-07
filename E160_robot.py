@@ -1,7 +1,7 @@
 
 from E160_state import *
+from E160_PF import *
 import math
-import time
 import datetime
 
 class E160_robot:
@@ -12,6 +12,11 @@ class E160_robot:
         self.state_est.set_state(0,0,0)
         self.state_des = E160_state()
         self.state_des.set_state(0,0,0)
+        self.state_draw = E160_state()
+        self.state_draw.set_state(0,0,0)        
+        self.state_odo = E160_state()
+        self.state_odo.set_state(0,0,0) # real position for simulation
+
         #self.v = 0.05
         #self.w = 0.1
         self.R = 0
@@ -19,7 +24,6 @@ class E160_robot:
         self.radius = 0.147 / 2
         self.width = 2*self.radius
         self.wheel_radius = 0.03
-        self.wheel_circumference = 2*math.pi*self.wheel_radius
         self.address = address
         self.ID = self.address.encode().__str__()[-1]
         self.last_measurements = []
@@ -36,22 +40,14 @@ class E160_robot:
         self.last_simulated_encoder_R = 0
         self.last_simulated_encoder_L = 0
         
-        self.Kpho = 1#3.79#1.0
-        self.Kalpha = 2#3.8#2.0
-        self.Kbeta = -.5#-4#-0.5
-        self.max_velocity = 0.1
+        self.Kpho = 1#1.0
+        self.Kalpha = 2#2.0
+        self.Kbeta = -0.5#-0.5
+        self.max_velocity = 0.05
         self.point_tracked = True
         self.encoder_per_sec_to_rad_per_sec = 10
 
-        self.current_point = -1
-        self.path_tracking = False
-
-        if self.environment.robot_mode == "SIMULATION MODE":
-            self.distance_threshold = 0.005
-            self.angle_threshold = 0.008
-        else:
-            self.distance_threshold = 0.05
-            self.angle_threshold = 0.1
+        self.PF = E160_PF(environment, self.width, self.wheel_radius, self.encoder_resolution)
         
         
     def update(self, deltaT):
@@ -59,17 +55,29 @@ class E160_robot:
         # get sensor measurements
         self.encoder_measurements, self.range_measurements = self.update_sensor_measurements(deltaT)
 
-        # localize
-        self.state_est = self.localize(self.state_est, self.encoder_measurements, self.range_measurements)
-        
+        # update odometry
+        delta_s, delta_theta = self.update_odometry(self.encoder_measurements)
+
+        # update simulated real position, find ground truth for simulation
+        self.state_odo = self.localize(self.state_odo, delta_s, delta_theta, self.range_measurements)
+
+        # localize with particle filter
+        self.state_est = self.PF.LocalizeEstWithParticleFilter(self.encoder_measurements, self.range_measurements)
+
+        # to out put the true location for display purposes only. 
+        self.state_draw = self.state_odo
+
         # call motion planner
-        #self.motion_planner.update_plan()
+        # self.motion_planner.update_plan()
         
         # determine new control signals
         self.R, self.L = self.update_control(self.range_measurements)
         
         # send the control measurements to the robot
         self.send_control(self.R, self.L, deltaT)
+        
+        #print(self.state_est.x, self.state_est.y, self.state_est.t)
+        # self.state_est.set_state(0,0,0)
     
     
     def update_sensor_measurements(self, deltaT):
@@ -87,14 +95,16 @@ class E160_robot:
             
         elif self.environment.robot_mode == "SIMULATION MODE":
             encoder_measurements = self.simulate_encoders(self.R, self.L, deltaT)
-            range_measurements = [0,0,0]
+            sensor1 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[0])
+            sensor2 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[1])
+            sensor3 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[2])
+            range_measurements = [sensor1, sensor2, sensor3]
         
         return encoder_measurements, range_measurements
 
         
         
-    def localize(self, state_est, encoder_measurements, range_measurements):
-        delta_s, delta_theta = self.update_odometry(encoder_measurements)
+    def localize(self, state_est, delta_s, delta_theta, range_measurements):
         state_est = self.update_state(state_est, delta_s, delta_theta)
     
         return state_est
@@ -114,32 +124,11 @@ class E160_robot:
             desiredWheelSpeedR = self.manual_control_right_motor
             desiredWheelSpeedL = self.manual_control_left_motor
             
-        elif self.environment.control_mode == "AUTONOMOUS CONTROL MODE":
-            if self.path_tracking:
-                self.path_tracker()   
-
+        elif self.environment.control_mode == "AUTONOMOUS CONTROL MODE":   
             desiredWheelSpeedR, desiredWheelSpeedL = self.point_tracker_control()
             
         return desiredWheelSpeedR, desiredWheelSpeedL
-
-
-    def path_tracker(self):
-        point_list = [(0.2, 0, 0),
-                        (.4, .2, 0),
-                        (0, -.2, math.pi/2)]
-
-        if self.point_tracked:
-            if self.current_point + 1 != len(point_list):
-                self.current_point += 1
-                time.sleep(.5)
-
-            print('Updating Des')
-            print(point_list[self.current_point])
-
-            self.state_des.set_state(point_list[self.current_point][0], point_list[self.current_point][1], point_list[self.current_point][2])
-            self.point_tracked = False
-
-        return
+  
 
 
     def point_tracker_control(self):
@@ -149,63 +138,9 @@ class E160_robot:
 
             
             ############ Student code goes here ############################################
-            delta_x = self.state_des.x - self.state_est.x
-            delta_y = self.state_des.y - self.state_est.y
-
-            delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
-
-            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-
-            #print('Pre Alpha', alpha)
-
-
-            if alpha > -math.pi/2 and alpha <= math.pi/2:
-                rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-                beta = self.angle_wrap(-self.state_est.theta -alpha)
-
-                beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
-
-                desiredV = self.Kpho*rho
-                desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                print('Forward loop')
-            else:
-                rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
-                beta = self.angle_wrap(-self.state_est.theta -alpha)
-
-                beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
-
-                desiredV = -self.Kpho*rho
-                desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                print('Reverse Loop')
-
-            # A positive omega des should result in a positive spin
-            desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
-            desiredRotRateL = -desiredV/self.wheel_radius - self.radius*desiredW/self.wheel_radius
-
-
-            if abs(desiredRotRateR*self.wheel_radius) > self.max_velocity or abs(desiredRotRateL*self.wheel_radius) > self.max_velocity:
-                scaling_factor = self.max_velocity/max(abs(desiredRotRateR*self.wheel_radius), abs(desiredRotRateL*self.wheel_radius))
-                desiredRotRateR *= scaling_factor
-                desiredRotRateL *= scaling_factor
-
-
-            desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
-            desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
-
-            print('R Wheel Speed: ', desiredWheelSpeedR)
-            print('L Wheel Speed: ', desiredWheelSpeedL)
-            print('Alpha', alpha)
-            print('Beta', beta)
-            #print('Distance to point: ', rho)
-            print('Delta Theta: ', delta_theta)
-            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
-                desiredWheelSpeedR = 0
-                desiredWheelSpeedL = 0
-                self.point_tracked = True
             
             
+            pass 
         # the desired point has been tracked, so don't move
         else:
             desiredWheelSpeedR = 0
@@ -244,10 +179,15 @@ class E160_robot:
         #print "simulate_encoders", R, L, right_encoder_measurement, left_encoder_measurement
         return [left_encoder_measurement, right_encoder_measurement]
     
-        
+    def simulate_range_finder(self, state, sensorT):
+        '''Simulate range readings, given a simulated ground truth state'''
+        p = self.PF.Particle(state.x, state.y, state.theta, 0)
+
+        return self.PF.FindMinWallDistance(p, self.environment.walls, sensorT)
+
     def make_headers(self):
         f = open(self.file_name, 'a+')
-        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} {5:^1} \n'.format('V', 'W', 'RW', 'LW', 'A', 'B'))
+        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} \n'.format('R1', 'R2', 'R3', 'RW', 'LW'))
         f.close()
 
         
@@ -256,7 +196,7 @@ class E160_robot:
         f = open(self.file_name, 'a+')
         
         # edit this line to have data logging of the data you care about
-        data = [str(x) for x in []]
+        data = [str(x) for x in [1,2,3,4,5]]
         
         f.write(' '.join(data) + '\n')
         f.close()
@@ -271,65 +211,57 @@ class E160_robot:
 
     def update_odometry(self, encoder_measurements):
 
+        delta_s = 0
+        delta_theta = 0
+
          # ****************** Additional Student Code: Start ************
-        #Left Wheel = 69.18 mm
-        #Right Wheel = 69.13 mm
-        #Average Wheel = 69.155 +- 0.01 mm
 
-        diffEncoder0 = encoder_measurements[0] - self.last_encoder_measurements[0]
-        diffEncoder1 = encoder_measurements[1] - self.last_encoder_measurements[1]
 
-        self.last_encoder_measurements[0] = encoder_measurements[0]
-        self.last_encoder_measurements[1] = encoder_measurements[1]
-
-        if diffEncoder0 > 1000 or diffEncoder1 > 1000:
+        # Calculate difference in movement from last time step
+        diffEncoder0 = +(encoder_measurements[0]-self.last_encoder_measurements[0]);
+        diffEncoder1 = -(encoder_measurements[1]-self.last_encoder_measurements[1]);
+        
+        # At the first iteration, zero out
+        if abs(diffEncoder0)> 1000 or abs(diffEncoder1)> 1000:
             diffEncoder0 = 0
             diffEncoder1 = 0
-            
-        wheelDistanceR = (diffEncoder0*self.wheel_circumference)/self.encoder_resolution
+
+        #Localization
+        wheelDistanceL = - 2 * 3.14 * self.wheel_radius / self.encoder_resolution * (diffEncoder0); # Negative since this is left wheel
         
-        wheelDistanceL = (diffEncoder1*self.wheel_circumference)/self.encoder_resolution
+        wheelDistanceR = + 2 * 3.14 * self.wheel_radius / self.encoder_resolution * (diffEncoder1); # Positive since this is right wheel
+        
 
-        delta_s =(wheelDistanceL+wheelDistanceR)/2
+        # print wheelDistanceL
+        # remember for next time
+        self.last_encoder_measurements[0] = encoder_measurements[0];
+        self.last_encoder_measurements[1] = encoder_measurements[1];
 
-        delta_theta = (wheelDistanceR-wheelDistanceL)/self.radius
+        # Calculate v x dt and w x dt
+        delta_s = 0.5 * (wheelDistanceR + wheelDistanceL);
+        delta_theta = 0.5 / self.radius * (wheelDistanceR - wheelDistanceL);
 
-
+        
         # ****************** Additional Student Code: End ************
             
         # keep this to return appropriate changes in distance, angle
-        return delta_s, delta_theta 
+        return delta_s, delta_theta
 
     
     
     
     def update_state(self, state, delta_s, delta_theta):
         
-         # ****************** Additional Student Code: Start ************
+          # ****************** Additional Student Code: Start ************
+        state.x = state.x + delta_s*math.cos(state.theta+delta_theta/2)
+        state.y = state.y + delta_s*math.sin(state.theta+delta_theta/2)
+        state.theta = state.theta + delta_theta
         
-        delta_x = delta_s*math.cos(state.theta + delta_theta/2)
-        delta_y = delta_s*math.sin(state.theta + delta_theta/2)
-
-        newX = state.x + delta_x
-        newY = state.y + delta_y
-        newTheta = self.normalizeAngle(state.theta + delta_theta)
-
-        state.set_state(newX, newY, newTheta)
         
         # ****************** Additional Student Code: End ************
-
-
+            
         # keep this to return the updated state
         return state
-
-    def normalizeAngle(self, angle):
-
-        newAngle = angle
-        while (newAngle <= -math.pi):
-            newAngle += 2*math.pi
-        while (newAngle > math.pi):
-            newAngle -= 2*math.pi
-        return newAngle
         
         
         
