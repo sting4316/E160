@@ -6,6 +6,7 @@ from E160_state import*
 from scipy.stats import norm
 
 
+
 class E160_PF:
 
 	def __init__(self, environment, robotWidth, wheel_radius, encoder_resolution):
@@ -18,6 +19,7 @@ class E160_PF:
 		self.radius = robotWidth/2
 		self.wheel_radius = wheel_radius
 		self.encoder_resolution = encoder_resolution
+		self.wheel_circumference = self.wheel_radius*2*math.pi
 		self.FAR_READING = 1000
 		
 		# PF parameters
@@ -56,15 +58,19 @@ class E160_PF:
 			
 	def SetRandomStartPos(self, i):
 		# add student code here 
+        x_pos = random.uniform(self.map_minX, self.map_maxX)
+        y_pos = random.random(self.map_minY, self.map_maxY)
+        theta = random.random(-math.pi, math.pi)
+        weight = 1/self.numParticles
         
-        
-        
+        self.particles(i, Particle(x_pos, y_pos, theta, weight))
         # end student code here
         pass
 
 	def SetKnownStartPos(self, i):
 		# add student code here 
-        
+		weight = 1/self.numParticles
+        self.particles.insert(i, Particle(0, 0, 0, weight))
         
         
         # end student code here
@@ -80,7 +86,13 @@ class E160_PF:
 				None'''
 		
         # add student code here 
-        
+		for i in range(0, self.numParticles):
+			Propagate(encoder_measurements, i)
+			self.particles[i].weight = CalculateWeight(sensor_readings, self.walls, i)
+
+		# Only resample if a valid sensor measurement is read
+		if sensor_readings[1] < self.FAR_READING:
+			Resample()
         
         
         # end student code here
@@ -96,10 +108,35 @@ class E160_PF:
 			return:
 				nothing'''
         # add student code here 
-        
-        
-        
+        diffEncoder0 = encoder_measurements[0] - self.last_encoder_measurements[0] 
+        diffEncoder1 = encoder_measurements[1] - self.last_encoder_measurements[1]
+
+        self.last_encoder_measurements[0] = encoder_measurements[0]
+        self.last_encoder_measurements[1] = encoder_measurements[1]
+
+        if abs(diffEncoder0) > 1000 or abs(diffEncoder1) > 1000:
+            diffEncoder0 = 0
+            diffEncoder1 = 0
+            
+        wheelDistanceR = (diffEncoder0*self.wheel_circumference)/self.encoder_resolution
+        wheelDistanceL = (diffEncoder1*self.wheel_circumference)/self.encoder_resolution
+
+        delta_s =(wheelDistanceL+wheelDistanceR)/2 + random.normalvariate(0, self.odom_xy_sigma)
+        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) + random.normalvariate(0, self.odom_heading_sigma)
+
+        delta_x = delta_s*math.cos(state.theta + delta_theta/2)
+        delta_y = delta_s*math.sin(state.theta + delta_theta/2)
+
+        newX = state.x + delta_x
+        newY = state.y + delta_y
+        newTheta = self.normalizeAngle(state.theta + delta_theta)
+
+        self.particles[i].x = newX
+        self.particles[i].y = newY
+        self.particles[i].heading = newTheta
+
         # end student code here
+        return
         
         
 	def CalculateWeight(self, sensor_readings, walls, particle):
@@ -112,9 +149,12 @@ class E160_PF:
 			return:
 				new weight of the particle (float) '''
 
-		newWeight = 0
+		
         # add student code here 
-        
+
+        # Use front IR sensor
+        expected_IR_reading = FindMinWallDistance(i, walls, self.sensor_orientation[1])
+        newWeight = norm.pdf(sensor_readings[1], expected_IR_reading, IR_sigma)
         
         
         # end student code here
@@ -127,10 +167,26 @@ class E160_PF:
 			Return:
 				None'''
         # add student code here 
-        
-        
+        w_tot = max(map(lambda x: x[-1], self.particles))
+        X_temp = []
+        for i in range(numParticles):
+        	w_i = self.particles[i].weight/w_tot
+
+        	if w_i < 0.25:
+        		X_temp.extend([self.particles[i]]*1)
+        	else if w_i < 0.5:
+        		X_temp.extend([self.particles[i]]*2)
+        	else if w_i < 0.75:
+        		X_temp.extend([self.particles[i]]*3)
+        	else if w_i < 1.00:
+        		X_temp.extend([self.particles[i]]*4)
+
+        for i in range(numParticles):
+        	r = int(random.uniform(0, len(X_temp)))
+        	self.particles[i] = X_temp[r]
         
         # end student code here
+        return
         
 
 
