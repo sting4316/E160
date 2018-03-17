@@ -198,7 +198,25 @@ class E160_PF:
 			Return:
 				None'''
         # add student code here 
+        float xavg = 0
+		float yavg = 0
+		float thetaavg = 0
+		
+        for parts in self.numParticles:
+			xavg += parts.x
+			yavg += parts.y
+			thetaavg += parts.heading
+
+		xavg = xavg/self.numParticles
+		yavg = yavg/self.numParticles
+		thetaavg = thetaavg/self.numParticles
         
+		self.x = xavg
+		self.y = yavg
+		self.heading = thetaavg
+        # end student code here
+        
+		return self.state
         
         
         # end student code here
@@ -216,12 +234,16 @@ class E160_PF:
 			Return:
 				distance to the closest wall' (float)'''
         # add student code here 
-        
-        
+        shortest = FindMinWallDistance(self, particle, walls[0], sensorT)
+
+        for items in walls:
+			x = FindMinWallDistance(self, particle, item, sensorT)
+			if x < shortest:
+				shortest = x
         
         # end student code here
         
-		return 0
+		return shortest
     
 
 	def FindWallDistance(self, particle, wall, sensorT):
@@ -232,13 +254,55 @@ class E160_PF:
 				sensorT: orientation of the sensor on the robot
 			Return:
 				distance to the closest wall (float)'''
+
 		# add student code here 
         
-        
-        
-        # end student code here
-        		
-		return 0
+		#i'm kinda confused on the wall notation but i am assuming it just goes 
+		# [X1, Y1, X2, Y2] like the manual says?
+
+		#ref dot products
+		#https://stackoverflow.com/questions/4030565/line-and-line-segment-intersection?rq=1
+
+		#create constants
+		#slope of line segment of wall
+		m = (wall[3]-wall[1])/(wall[2]-wall[0])
+		#tangent of robot heading with compensation for sensorT
+		tantheta = math.tan(angleDiff(particle.heading - sensorT))
+
+		#check if an intersection exists
+		normaly = -(wall[2]-wall[0])
+		normalx = (wall[3]-wall[1])
+
+		p1x = wall[0] - particle.x
+		p1y = wall[1] - particle.y
+
+		p2x = wall[2] - particle.x
+		p2y = wall[3] - particle.y
+
+		#find dot products to determine if there is an intersection
+		product1 = (normalx*p1x) + (normaly*p1y)
+		product2 = (normalx*p2x) + (normaly*p2y)
+
+		if product1 > 0 and product2 > 0:
+			return 0 #return 0 if no intersection
+
+		elif product1 < 0 and product2 < 0:
+			return 0 #return 0 if no intersection
+
+		else:
+			#calculate point of intersection
+			xinter = ((particle.x*tantheta) + wall[1] - particle.y - m*wall[0])/(tantheta - m)
+			yinter = m*(xinter - wall[0]) + wall[1]
+
+			#calculate distance from particle to wall
+			xsq = pow((particle.x - xinter), 2)
+			ysq = pow((particle.y - yinter), 2)
+			distance = sqrt(xsq + ysq)
+			
+
+			# end student code here
+					
+			return distance
 
 	
 
@@ -259,6 +323,3 @@ class E160_PF:
 
 		def __str__(self):
 			return str(self.x) + " " + str(self.y) + " " + str(self.heading) + " " + str(self.weight)
-
-
-
