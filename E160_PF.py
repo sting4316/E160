@@ -8,41 +8,42 @@ from scipy.stats import norm
 
 class E160_PF:
 
-	def __init__(self, environment, robotWidth, wheel_radius, encoder_resolution):
-		self.particles = []
-		self.environment = environment
-		self.numParticles = 400
-		
-		# maybe should just pass in a robot class?
-		self.robotWidth = robotWidth
-		self.radius = robotWidth/2
-		self.wheel_radius = wheel_radius
-		self.encoder_resolution = encoder_resolution
-		self.FAR_READING = 1000
-		
-		# PF parameters
-		self.IR_sigma = 0.2 # Range finder s.d
-		self.odom_xy_sigma = 1.25	# odometry delta_s s.d
-		self.odom_heading_sigma = 0.75	# odometry heading s.d
-		self.particle_weight_sum = 0
+    def __init__(self, environment, robotWidth, wheel_radius, encoder_resolution):
+        self.particles = []
+        self.environment = environment
+        self.numParticles = 400
+        
+        # maybe should just pass in a robot class?
+        self.robotWidth = robotWidth
+        self.radius = robotWidth/2
+        self.wheel_radius = wheel_radius
+        self.wheel_circumference = 2*math.pi*self.wheel_radius
+        self.encoder_resolution = encoder_resolution
+        self.FAR_READING = 1000
+        
+        # PF parameters
+        self.IR_sigma = 0.2 # Range finder s.d
+        self.odom_xy_sigma = 1.25   # odometry delta_s s.d
+        self.odom_heading_sigma = 0.75  # odometry heading s.d
+        self.particle_weight_sum = 0
 
-		# define the sensor orientations
-		self.sensor_orientation = [-math.pi/2, 0, math.pi/2] # orientations of the sensors on robot
-		self.walls = self.environment.walls
+        # define the sensor orientations
+        self.sensor_orientation = [-math.pi/2, 0, math.pi/2] # orientations of the sensors on robot
+        self.walls = self.environment.walls
 
-		# initialize the current state
-		self.state = E160_state()
-		self.state.set_state(0,0,0)
+        # initialize the current state
+        self.state = E160_state()
+        self.state.set_state(0,0,0)
 
-		# TODO: change this later
-		self.map_maxX = 1.0
-		self.map_minX = -1.0
-		self.map_maxY = 1.0
-		self.map_minY = -1.0
-		self.InitializeParticles()
-		self.last_encoder_measurements =[0,0]
+        # TODO: change this later
+        self.map_maxX = 1.0
+        self.map_minX = -1.0
+        self.map_maxY = 1.0
+        self.map_minY = -1.0
+        self.InitializeParticles()
+        self.last_encoder_measurements =[0,0]
 
-	 def InitializeParticles(self):
+    def InitializeParticles(self):
         ''' Populate self.particles with random Particle 
             Args:
                 None
@@ -86,7 +87,7 @@ class E160_PF:
         # add student code here 
         for i in range(0, self.numParticles):
             self.Propagate(encoder_measurements, i)
-            self.particles[i].weight = self.CalculateWeight(sensor_readings, self.walls, i)
+            self.particles[i].weight = self.CalculateWeight(sensor_readings, self.walls, self.particles[i])
 
         # Only resample if a valid sensor measurement is read
         if sensor_readings[1] < self.FAR_READING:
@@ -152,7 +153,8 @@ class E160_PF:
 
         # Use front IR sensor
         expected_IR_reading = self.FindMinWallDistance(particle, walls, self.sensor_orientation[1])
-        newWeight = norm.pdf(sensor_readings[1], expected_IR_reading, IR_sigma)
+        newWeight = norm.pdf(sensor_readings[1], expected_IR_reading, self.IR_sigma)
+        print(sensor_readings[1])
         
         
         # end student code here
@@ -165,22 +167,26 @@ class E160_PF:
             Return:
                 None'''
         # add student code here 
-        w_tot = max(map(lambda x: x[-1], self.particles))
+        w_tot = max(map(lambda x: x.weight, self.particles))
         X_temp = []
-        for i in range(numParticles):
+        for i in range(self.numParticles):
             w_i = self.particles[i].weight/w_tot
 
             if w_i < 0.25:
-                X_temp.extend([self.particles[i]]*1)
+                for j in range(1):
+                    X_temp += [self.particles[i]]
             elif w_i < 0.5:
-                X_temp.extend([self.particles[i]]*2)
+                for j in range(2):
+                    X_temp += [self.particles[i]]
             elif w_i < 0.75:
-                X_temp.extend([self.particles[i]]*3)
-            elif w_i < 1.00:
-                X_temp.extend([self.particles[i]]*4)
+                for j in range(3):
+                    X_temp += [self.particles[i]]
+            elif w_i <= 1.00:
+                for j in range(4):
+                    X_temp += [self.particles[i]]
 
-        for i in range(numParticles):
-            r = int(random.uniform(0, len(X_temp)))
+        for i in range(self.numParticles):
+            r = int(random.uniform(0, len(X_temp)-1))
             self.particles[i] = X_temp[r]
         
         # end student code here
@@ -200,7 +206,7 @@ class E160_PF:
         yavg = 0
         thetaavg = 0
         
-        for parts in self.numParticles:
+        for parts in self.particles:
             xavg += parts.x
             yavg += parts.y
             thetaavg += parts.heading
@@ -236,8 +242,8 @@ class E160_PF:
 
         for item in walls:
             x = self.FindWallDistance(particle, item, sensorT)
-            if x < shortest:
-                shortest = x
+            if abs(x) < abs(shortest):
+                shortest = abs(x)
         
         # end student code here
         
@@ -264,63 +270,52 @@ class E160_PF:
         #create constants
         #slope of line segment of wall
         m = wall.slope
-        #tangent of robot heading with compensation for sensorT
-        tantheta = math.tan(self.angleDiff(particle.heading - sensorT))
+        p = np.array([particle.x, particle.y])
+        r = np.array([math.cos(self.angleDiff(particle.heading + sensorT)), math.sin(self.angleDiff(particle.heading + sensorT))])
 
-        #check if an intersection exists
-        normaly = -(wall.points[2]-wall.points[0])
-        normalx = (wall.points[3]-wall.points[1])
+        q = np.array([ wall.points[0], wall.points[1]])
+        s = np.array([wall.points[2]-wall.points[0], wall.points[3]-wall.points[1]])
 
-        p1x = wall.points[0] - particle.x
-        p1y = wall.points[1] - particle.y
-
-        p2x = wall.points[2] - particle.x
-        p2y = wall.points[3] - particle.y
-
-        #find dot products to determine if there is an intersection
-        product1 = (normalx*p1x) + (normaly*p1y)
-        product2 = (normalx*p2x) + (normaly*p2y)
-
-        if product1 > 0 and product2 > 0:
-            return 0 #return 0 if no intersection
-
-        elif product1 < 0 and product2 < 0:
-            return 0 #return 0 if no intersection
-
+        if np.cross(r, s) != 0:
+            t = np.cross((q-p), s/np.cross(r, s))
+            u = np.cross((q-p), r/np.cross(r, s))
         else:
-            #calculate point of intersection
-            xinter = ((particle.x*tantheta) + wall.points[1] - particle.y - m*wall.points[0])/(tantheta - m)
-            yinter = m*(xinter - wall.points[0]) + wall.points[1]
+            return 0 
 
-            #calculate distance from particle to wall
-            xsq = pow((particle.x - xinter), 2)
-            ysq = pow((particle.y - yinter), 2)
-            distance = sqrt(xsq + ysq)
-            
+        #calculate point of intersection
+        intersection = p + t*r
+        xinter = intersection[0]
+        yinter = intersection[1]
+
+        #calculate distance from particle to wall
+        xsq = pow((particle.x - xinter), 2)
+        ysq = pow((particle.y - yinter), 2)
+        distance = pow((xsq + ysq), .5)
+        
 
             # end student code here
                     
-            return distance
+        return distance
 
-	
+    
 
-	def angleDiff(self, ang):
-		''' Wrap angles between -pi and pi'''
-		while ang < -math.pi:
-			ang = ang + 2 * math.pi
-		while ang > math.pi:
-			ang = ang - 2 * math.pi
-		return ang
+    def angleDiff(self, ang):
+        ''' Wrap angles between -pi and pi'''
+        while ang < -math.pi:
+            ang = ang + 2 * math.pi
+        while ang > math.pi:
+            ang = ang - 2 * math.pi
+        return ang
 
-	class Particle:
-		def __init__(self, x, y, heading, weight):
-			self.x = x
-			self.y = y
-			self.heading = heading
-			self.weight = weight
+    class Particle:
+        def __init__(self, x, y, heading, weight):
+            self.x = x
+            self.y = y
+            self.heading = heading
+            self.weight = weight
 
-		def __str__(self):
-			return str(self.x) + " " + str(self.y) + " " + str(self.heading) + " " + str(self.weight)
+        def __str__(self):
+            return str(self.x) + " " + str(self.y) + " " + str(self.heading) + " " + str(self.weight)
 
 
 

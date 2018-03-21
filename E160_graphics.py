@@ -1,5 +1,5 @@
 import math
-from Tkinter import *
+from tkinter import *
 from E160_robot import *
 from PIL import Image, ImageTk
 
@@ -202,7 +202,7 @@ class E160_graphics:
         desired_points = self.reverse_scale_points([float(event.x), float(event.y)], self.scale)
         robot = self.environment.robots[0]
         robot.state_des.set_state(desired_points[0],desired_points[1],0)
-        print "New desired robot state", robot.state_des.x, robot.state_des.y 
+        print("New desired robot state", robot.state_des.x, robot.state_des.y)
         
         
     def send_robot_commands(self):

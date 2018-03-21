@@ -24,6 +24,7 @@ class E160_robot:
         self.radius = 0.147 / 2
         self.width = 2*self.radius
         self.wheel_radius = 0.03
+        self.wheel_circumference = 2*math.pi*self.wheel_radius
         self.address = address
         self.ID = self.address.encode().__str__()[-1]
         self.last_measurements = []
@@ -43,7 +44,28 @@ class E160_robot:
         self.Kpho = 1#1.0
         self.Kalpha = 2#2.0
         self.Kbeta = -0.5#-0.5
-        self.max_velocity = 0.05
+        self.max_velocity = 0.1
+        self.point_tracked = True
+        self.encoder_per_sec_to_rad_per_sec = 10
+
+        self.current_point = -1
+
+        if self.environment.robot_mode == "SIMULATION MODE":
+            self.Kpho = 3#2#1.0
+            self.Kalpha = 8#10#2.0
+            self.Kbeta = -1.5#-4#-0.5
+            self.Kp = 2
+            self.distance_threshold = 0.001
+            self.angle_threshold = 0.015
+            self.point_turn_threshold = 0.0005
+        else:
+            self.Kpho = 3#2#1.0
+            self.Kalpha = 8#10#2.0
+            self.Kbeta = -1.5#-4#-0.5
+            self.Kp = 1.2
+            self.distance_threshold = 0.05
+            self.angle_threshold = 0.1
+            self.point_turn_threshold = 0.01
         self.point_tracked = True
         self.encoder_per_sec_to_rad_per_sec = 10
 
@@ -138,9 +160,61 @@ class E160_robot:
 
             
             ############ Student code goes here ############################################
+            delta_x = self.state_des.x - self.state_est.x
+            delta_y = self.state_des.y - self.state_est.y
+
+            delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+
+            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
+            rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+
+            if rho <= self.point_turn_threshold and delta_theta > self.angle_threshold:
+                desiredV = 0
+                desiredW = self.Kp*(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+            else:
+                if alpha > -math.pi/2 and alpha <= math.pi/2:
+                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
+                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+
+                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+
+                    desiredV = self.Kpho*rho
+                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
+                    #print('Forward loop')
+                else:
+                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
+                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+
+                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+
+                    desiredV = -self.Kpho*rho
+                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
+                    #print('Reverse Loop')
+
+            # A positive omega des should result in a positive spin
+            desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
+            desiredRotRateL = -desiredV/self.wheel_radius - self.radius*desiredW/self.wheel_radius
+
+
+            if abs(desiredRotRateR*self.wheel_radius) > self.max_velocity or abs(desiredRotRateL*self.wheel_radius) > self.max_velocity:
+                #print('Max Velocity at', rho, delta_theta)
+                scaling_factor = self.max_velocity/max(abs(desiredRotRateR*self.wheel_radius), abs(desiredRotRateL*self.wheel_radius))
+                desiredRotRateR *= scaling_factor
+                desiredRotRateL *= scaling_factor
+
+
+            desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
+            desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
+
+            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
+                print('Reached Point')
+                desiredWheelSpeedR = 0
+                desiredWheelSpeedL = 0
+                self.point_tracked = True
             
             
-            pass 
         # the desired point has been tracked, so don't move
         else:
             desiredWheelSpeedR = 0
