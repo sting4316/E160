@@ -30,6 +30,7 @@ class E160_PF:
         # define the sensor orientations
         self.sensor_orientation = [-math.pi/2, 0, math.pi/2] # orientations of the sensors on robot
         self.walls = self.environment.walls
+        self.last_sensor_reading = [0, 0, 0]
 
         # initialize the current state
         self.state = E160_state()
@@ -85,13 +86,13 @@ class E160_PF:
                 None'''
         
         # add student code here 
-        for i in range(0, self.numParticles):
-            self.Propagate(encoder_measurements, i)
-            self.particles[i].weight = self.CalculateWeight(sensor_readings, self.walls, self.particles[i])
+        #for i in range(0, self.numParticles):
+        #    self.Propagate(encoder_measurements, i)
+        #    self.particles[i].weight = self.CalculateWeight(sensor_readings, self.walls, self.particles[i])
 
         # Only resample if a valid sensor measurement is read
-        if sensor_readings[1] < self.FAR_READING:
-            self.Resample()
+        #if sensor_readings[1] != self.robot.last_measuremnt:
+        #    self.Resample()
         
         
         # end student code here
@@ -107,8 +108,8 @@ class E160_PF:
             return:
                 nothing'''
         # add student code here 
-        diffEncoder0 = encoder_measurements[0] - self.last_encoder_measurements[0] 
-        diffEncoder1 = encoder_measurements[1] - self.last_encoder_measurements[1]
+        diffEncoder0 = self.last_encoder_measurements[0] -encoder_measurements[0] 
+        diffEncoder1 = self.last_encoder_measurements[1] - encoder_measurements[1] 
 
         self.last_encoder_measurements[0] = encoder_measurements[0]
         self.last_encoder_measurements[1] = encoder_measurements[1]
@@ -120,8 +121,8 @@ class E160_PF:
         wheelDistanceR = (diffEncoder0*self.wheel_circumference)/self.encoder_resolution
         wheelDistanceL = (diffEncoder1*self.wheel_circumference)/self.encoder_resolution
 
-        delta_s =(wheelDistanceL+wheelDistanceR)/2 + random.normalvariate(0, self.odom_xy_sigma)
-        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) + random.normalvariate(0, self.odom_heading_sigma)
+        delta_s =(wheelDistanceL+wheelDistanceR)/2 #+ random.normalvariate(0, self.odom_xy_sigma)
+        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) #+ random.normalvariate(0, self.odom_heading_sigma)
 
         delta_x = delta_s*math.cos(self.state.theta + delta_theta/2)
         delta_y = delta_s*math.sin(self.state.theta + delta_theta/2)
@@ -240,11 +241,13 @@ class E160_PF:
         # add student code here 
         shortest = self.FindWallDistance(particle, walls[0], sensorT)
 
+
         for item in walls:
             x = self.FindWallDistance(particle, item, sensorT)
+            #print(item, x)
             if abs(x) < abs(shortest):
                 shortest = abs(x)
-        
+
         # end student code here
         
         return shortest
@@ -266,38 +269,74 @@ class E160_PF:
 
         #ref dot products
         #https://stackoverflow.com/questions/4030565/line-and-line-segment-intersection?rq=1
+        
+        wall_points = self.getWallPoints(wall)
+        o = np.array([particle.x, particle.y])
+        a = np.array([wall_points[0], wall_points[1]])
+        b = np.array([wall_points[2], wall_points[3]])
+        v_1 = o-a
+        v_2 = b-a
+        v_3 = np.array([-math.sin(self.angleDiff(particle.heading + sensorT)), math.cos(self.angleDiff(particle.heading + sensorT))])
+        print(particle.heading)
 
+        t_1 = np.linalg.norm(np.cross(v_1, v_2))/np.dot(v_2, v_3)
+        t_2 = np.dot(v_1, v_3)/np.dot(v_2, v_3)
+
+        if t_1 >= 0 and t_2 >= 0 and t_2 <= 1:
+            intersection = a + (b-a)*t_2
+            xinter = intersection[0]
+            yinter = intersection[1]
+
+            #calculate distance from particle to wall
+            xsq = pow((particle.x - xinter), 2)
+            ysq = pow((particle.y - yinter), 2)
+            distance = pow((xsq + ysq), .5)
+        else:
+            distance = self.FAR_READING
         #create constants
         #slope of line segment of wall
-        m = wall.slope
-        p = np.array([particle.x, particle.y])
-        r = np.array([math.cos(self.angleDiff(particle.heading + sensorT)), math.sin(self.angleDiff(particle.heading + sensorT))])
+        #p = np.array([particle.x, particle.y])
+        #r = np.array([math.cos(self.angleDiff(particle.heading + sensorT)), math.sin(self.angleDiff(particle.heading + sensorT))])
+        #print(r)
 
-        q = np.array([ wall.points[0], wall.points[1]])
-        s = np.array([wall.points[2]-wall.points[0], wall.points[3]-wall.points[1]])
+        #q = np.array([ wall.points[0], wall.points[1]])
+        #s = np.array([wall.points[2]-wall.points[0], wall.points[3]-wall.points[1]])
 
-        if np.cross(r, s) != 0:
-            t = np.cross((q-p), s/np.cross(r, s))
-            u = np.cross((q-p), r/np.cross(r, s))
-        else:
-            return 0 
+        #if np.cross(r, s) != 0:
+        #    t = np.cross((q-p), s/np.cross(r, s))
+        #    u = np.cross((q-p), r/np.cross(r, s))
+        #else:
+        #    return 0 
 
         #calculate point of intersection
-        intersection = p + t*r
-        xinter = intersection[0]
-        yinter = intersection[1]
+        #intersection = p + t*r
 
-        #calculate distance from particle to wall
-        xsq = pow((particle.x - xinter), 2)
-        ysq = pow((particle.y - yinter), 2)
-        distance = pow((xsq + ysq), .5)
         
 
             # end student code here
                     
         return distance
 
-    
+    def getWallPoints(self, wall):
+        slope = wall.slope
+
+        if slope == "vertical":
+            X1 = wall.points[0]+wall.radius
+            Y1 = wall.points[1]-wall.radius
+            X2 = wall.points[4]-wall.radius
+            Y2 = wall.points[5]+wall.radius
+
+            wall_points = [X1, Y1, X2, Y2]
+        
+        # assume left point is first
+        elif slope == "horizontal":
+            X1 = wall.points[0]+wall.radius
+            Y1 = wall.points[1]+wall.radius
+            X2 = wall.points[4]-wall.radius
+            Y2 = wall.points[5]-wall.radius
+
+            wall_points = [X1, Y1, X2, Y2]
+        return wall_points
 
     def angleDiff(self, ang):
         ''' Wrap angles between -pi and pi'''
