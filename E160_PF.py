@@ -23,9 +23,9 @@ class E160_PF:
         self.FAR_READING = 1000
         
         # PF parameters
-        self.IR_sigma = 0.2 # Range finder s.d
-        self.odom_xy_sigma = .1#1.25   # odometry delta_s s.d
-        self.odom_heading_sigma = .1#0.75  # odometry heading s.d
+        self.IR_sigma = 0.1 # Range finder s.d
+        self.odom_xy_sigma = 100   # odometry delta_s s.d
+        self.odom_heading_sigma = 0.75  # odometry heading s.d
         self.particle_weight_sum = 0
 
         # define the sensor orientations
@@ -53,8 +53,8 @@ class E160_PF:
                 None'''
         self.particles = []
         for i in range(0, self.numParticles):
-            #self.SetRandomStartPos(i)
-            self.SetKnownStartPos(i)
+            self.SetRandomStartPos(i)
+            #self.SetKnownStartPos(i)
 
             
     def SetRandomStartPos(self, i):
@@ -97,14 +97,10 @@ class E160_PF:
             self.last_encoder_measurements[0] = encoder_measurements[0]
             self.last_encoder_measurements[1] = encoder_measurements[1]
 
-            #self.Resample()
-
-        # Only resample if a new sensor measurement is read
-        #if sensor_readings != self.last_sensor_reading:
-        #    self.Resample()
-        #    self.last_sensor_reading = sensor_readings
-        #    
-        
+            #Only resample if a new sensor measurement is read
+            if sensor_readings != self.last_sensor_reading:
+                self.Resample()
+                self.last_sensor_reading = sensor_readings
         
         # end student code here
         
@@ -119,8 +115,8 @@ class E160_PF:
             return:
                 nothing'''
         # add student code here 
-        diffEncoder0 = self.last_encoder_measurements[0] -encoder_measurements[0] 
-        diffEncoder1 = self.last_encoder_measurements[1] - encoder_measurements[1] 
+        diffEncoder0 = self.last_encoder_measurements[0] -encoder_measurements[0] + random.normalvariate(0, self.odom_xy_sigma)
+        diffEncoder1 = self.last_encoder_measurements[1] - encoder_measurements[1] + random.normalvariate(0, self.odom_xy_sigma)
 
 
         if abs(diffEncoder0) > 1000 or abs(diffEncoder1) > 1000:
@@ -130,8 +126,8 @@ class E160_PF:
         wheelDistanceR = (diffEncoder0*self.wheel_circumference)/self.encoder_resolution
         wheelDistanceL = (diffEncoder1*self.wheel_circumference)/self.encoder_resolution
 
-        delta_s =(wheelDistanceL+wheelDistanceR)/2 #+ random.normalvariate(0, self.odom_xy_sigma)
-        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) #+ random.normalvariate(0, self.odom_heading_sigma)
+        delta_s =(wheelDistanceL+wheelDistanceR)/2 
+        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) 
 
         delta_x = delta_s*math.cos(self.particles[i].heading + delta_theta/2)
         delta_y = delta_s*math.sin(self.particles[i].heading + delta_theta/2)
@@ -167,9 +163,15 @@ class E160_PF:
         # add student code here 
 
         # Use front IR sensor
-        expected_IR_reading = self.FindMinWallDistance(particle, walls, self.sensor_orientation[1])
-        newWeight = max(norm.pdf(sensor_readings[1], expected_IR_reading, self.IR_sigma), 0.01)
-        print(newWeight)
+        expected_IR_reading_left = self.FindMinWallDistance(particle, walls, self.sensor_orientation[0])
+        expected_IR_reading_front = self.FindMinWallDistance(particle, walls, self.sensor_orientation[1])
+        expected_IR_reading_right = self.FindMinWallDistance(particle, walls, self.sensor_orientation[2])
+        newWeight_left = max(norm.pdf(sensor_readings[0], expected_IR_reading_left, self.IR_sigma), 0.001)
+        newWeight_front = max(norm.pdf(sensor_readings[1], expected_IR_reading_front, self.IR_sigma), 0.001)
+        newWeight_right = max(norm.pdf(sensor_readings[2], expected_IR_reading_right, self.IR_sigma), 0.001)
+
+        newWeight = (newWeight_left +newWeight_right + newWeight_front)/3
+        #print(newWeight)
         
         
         # end student code here
@@ -182,35 +184,60 @@ class E160_PF:
             Return:
                 None'''
         # add student code here 
+        '''
         w_tot = max(map(lambda x: x.weight, self.particles))
         X_temp = []
         for i in range(self.numParticles):
             w_i = self.particles[i].weight/w_tot
-            print(w_i)
+            #print(w_i)
 
-            if w_i <=    0.01:
+            if w_i < 0.2:
                 for j in range(1):
                     X_temp += [self.particles[i]]
-            elif w_i < 0.3:
+            if w_i < 0.4:
                 for j in range(2):
                     X_temp += [self.particles[i]]
-            elif w_i < 0.5:
-                for j in range(5):
-                    X_temp += [self.particles[i]]
             elif w_i < 0.7:
-                for j in range(10):
+                for j in range(30):
                     X_temp += [self.particles[i]]
             elif w_i < 0.9:
-                for j in range(20):
+                for j in range(80):
+                    X_temp += [self.particles[i]]
+            elif w_i < .93:
+                for j in range(90):
+                    X_temp += [self.particles[i]]
+            elif w_i < .95:
+                for j in range(100):
                     X_temp += [self.particles[i]]
             elif w_i <= 1.00:
-                for j in range(1000):
+                for j in range(200):
                     X_temp += [self.particles[i]]
 
         for i in range(self.numParticles):
             r = int(random.uniform(0, len(X_temp)-1))
-            self.particles[i] = X_temp[r]
-        
+            self.particles[i].x = X_temp[i].x
+            self.particles[i].y = X_temp[i].y
+            self.particles[i].heading = X_temp[i].heading
+            self.particles[i].weight = X_temp[i].weight
+
+        print(len(self.particles))
+        '''
+        w_tot = sum(list(map(lambda x: x.weight, self.particles)))
+        old_particles = self.particles
+
+        for i in range(self.numParticles):
+            r = random.random()*w_tot
+            j = 0
+
+            w_sum = old_particles[j].weight
+            while w_sum < r:
+                j = j +1
+                w_sum = w_sum + old_particles[j].weight
+            self.particles[i].x = old_particles[j].x
+            self.particles[i].y = old_particles[j].y
+            self.particles[i].heading = old_particles[j].heading
+            self.particles[i].weight = old_particles[j].weight
+            
         # end student code here
         return
         
@@ -237,12 +264,11 @@ class E160_PF:
         yavg = yavg/self.numParticles
         thetaavg = thetaavg/self.numParticles
         
-        self.x = xavg
-        self.y = yavg
-        self.heading = thetaavg
+        state = E160_state()
+        state.set_state(xavg, yavg, thetaavg)
         # end student code here
         
-        return self.state
+        return state
 
 
 
