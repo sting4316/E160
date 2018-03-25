@@ -2,6 +2,7 @@ import math
 import random
 import numpy as np
 import copy
+import time
 from E160_state import*
 from scipy.stats import norm
 
@@ -121,8 +122,8 @@ class E160_PF:
         wheelDistanceR = (diffEncoder0*self.wheel_circumference)/self.encoder_resolution
         wheelDistanceL = (diffEncoder1*self.wheel_circumference)/self.encoder_resolution
 
-        delta_s =(wheelDistanceL+wheelDistanceR)/2 #+ random.normalvariate(0, self.odom_xy_sigma)
-        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) #+ random.normalvariate(0, self.odom_heading_sigma)
+        delta_s =(wheelDistanceL+wheelDistanceR)/2 + random.normalvariate(0, self.odom_xy_sigma)
+        delta_theta = (wheelDistanceR-wheelDistanceL)/(2*self.radius) + random.normalvariate(0, self.odom_heading_sigma)
 
         delta_x = delta_s*math.cos(self.state.theta + delta_theta/2)
         delta_y = delta_s*math.sin(self.state.theta + delta_theta/2)
@@ -239,14 +240,16 @@ class E160_PF:
             Return:
                 distance to the closest wall' (float)'''
         # add student code here 
-        shortest = self.FindWallDistance(particle, walls[0], sensorT)
+        #shortest = self.FindWallDistance(particle, walls[0], sensorT)
 
-
+        shortest = self.FAR_READING
         for item in walls:
             x = self.FindWallDistance(particle, item, sensorT)
             #print(item, x)
             if abs(x) < abs(shortest):
                 shortest = abs(x)
+
+        #print(shortest)
 
         # end student code here
         
@@ -263,53 +266,84 @@ class E160_PF:
                 distance to the closest wall (float)'''
 
         # add student code here 
-        
-        #i'm kinda confused on the wall notation but i am assuming it just goes 
-        # [X1, Y1, X2, Y2] like the manual says?
-
         #ref dot products
         #https://stackoverflow.com/questions/4030565/line-and-line-segment-intersection?rq=1
         
         wall_points = self.getWallPoints(wall)
-        o = np.array([particle.x, particle.y])
-        a = np.array([wall_points[0], wall_points[1]])
-        b = np.array([wall_points[2], wall_points[3]])
-        v_1 = o-a
-        v_2 = b-a
-        v_3 = np.array([-math.sin(self.angleDiff(particle.heading + sensorT)), math.cos(self.angleDiff(particle.heading + sensorT))])
-        print(particle.heading)
+        #o = np.array([particle.x, particle.y])
+        #a = np.array([wall_points[0], wall_points[1]])
+        #b = np.array([wall_points[2], wall_points[3]])
+        #v_1 = o-a
+        #v_2 = b-a
+        #v_3 = np.array([-math.sin(self.angleDiff(particle.heading + sensorT)), math.cos(self.angleDiff(particle.heading + sensorT))])
 
-        t_1 = np.linalg.norm(np.cross(v_1, v_2))/np.dot(v_2, v_3)
-        t_2 = np.dot(v_1, v_3)/np.dot(v_2, v_3)
 
-        if t_1 >= 0 and t_2 >= 0 and t_2 <= 1:
-            intersection = a + (b-a)*t_2
+        #print(particle.heading)
+
+        #if np.dot(v_2, v_3) != 0:
+        #print(sensorT)
+        #print(wall_points)
+        #print(np.linalg.norm(np.cross(v_2, v_1)))
+        #t_1 = np.linalg.norm(np.cross(v_2, v_1))/np.dot(v_2, v_3)
+        #t_2 = np.dot(v_1, v_3)/np.dot(v_2, v_3)
+        #if sensorT == 0:
+
+         #   print(particle.heading + sensorT)
+         #   print(wall_points)
+         #   print(v_1)
+         #   print(v_2)
+         #   print(v_3)
+         #   print('t1', t_1)
+         #   print('t2', t_2)
+         #   print('-----------------------------------------')
+
+        
+        #if t_1 >= 0 and t_2 >= 0 and t_2 <= 1:
+        #    intersection = a + (b-a)*t_2
+            #if wall_points == [-0.5, 0.5, -0.5, -0.5]:
+            #    print(sensorT)
+        #    print(intersection)
+            #    time.sleep(1)
+        #    xinter = intersection[0]
+        #    yinter = intersection[1]
+
+            #calculate distance from particle to wall
+        #    xsq = pow((particle.x - xinter), 2)
+        #    ysq = pow((particle.y - yinter), 2)
+        #    distance = pow((xsq + ysq), .5)
+        #else:
+       #     distance = self.FAR_READING
+        #else:
+        #    distance = self.FAR_READING
+        #create constants
+        #slope of line segment of wall
+        p = np.array([particle.x, particle.y])
+        r = np.array([math.cos(self.angleDiff(particle.heading + sensorT)), math.sin(self.angleDiff(particle.heading + sensorT))])
+        #print(r)
+
+        q = np.array([ wall_points[0], wall_points[1]])
+        s = np.array([wall_points[2]-wall_points[0], wall_points[3]-wall_points[1]])
+
+        if np.cross(r, s) != 0:
+            t = np.cross((q-p), s)/np.cross(r, s)
+            u = np.cross((q-p), r)/np.cross(r, s)
+        else:
+            return  self.FAR_READING
+
+        #calculate point of intersection
+        if t >= 0 and t<= 1 and u >= 0 and u<= 1:
+            intersection = p + t*r
+            print(intersection)
             xinter = intersection[0]
             yinter = intersection[1]
 
-            #calculate distance from particle to wall
+                #calculate distance from particle to wall
             xsq = pow((particle.x - xinter), 2)
             ysq = pow((particle.y - yinter), 2)
             distance = pow((xsq + ysq), .5)
         else:
-            distance = self.FAR_READING
-        #create constants
-        #slope of line segment of wall
-        #p = np.array([particle.x, particle.y])
-        #r = np.array([math.cos(self.angleDiff(particle.heading + sensorT)), math.sin(self.angleDiff(particle.heading + sensorT))])
-        #print(r)
-
-        #q = np.array([ wall.points[0], wall.points[1]])
-        #s = np.array([wall.points[2]-wall.points[0], wall.points[3]-wall.points[1]])
-
-        #if np.cross(r, s) != 0:
-        #    t = np.cross((q-p), s/np.cross(r, s))
-        #    u = np.cross((q-p), r/np.cross(r, s))
-        #else:
-        #    return 0 
-
-        #calculate point of intersection
-        #intersection = p + t*r
+            return self.FAR_READING
+        
 
         
 
