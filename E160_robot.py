@@ -206,7 +206,7 @@ class E160_robot:
 
     def make_headers(self):
         f = open(self.file_name, 'a+')
-        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} \n'.format('R1', 'R2', 'R3', 'RW', 'LW'))
+        f.write('{0} {1:^1} \n'.format('pf', 'draw'))
         f.close()
 
         
@@ -215,7 +215,7 @@ class E160_robot:
         f = open(self.file_name, 'a+')
         
         # edit this line to have data logging of the data you care about
-        data = [str(x) for x in [1,2,3,4,5]]
+        data = [str(x) for x in [self.state_est, self.state_draw]]
         
         f.write(' '.join(data) + '\n')
         f.close()
@@ -224,7 +224,7 @@ class E160_robot:
     def set_manual_control_motors(self, R, L):
         
         self.manual_control_right_motor = int(R*256/100)
-        self.manual_control_left_motor = int(L*256/100)                                                         
+        self.manual_control_left_motor = int(L*274/100)                                                         
    
 
 
@@ -237,8 +237,8 @@ class E160_robot:
 
 
         # Calculate difference in movement from last time step
-        diffEncoder0 = +(encoder_measurements[0]-self.last_encoder_measurements[0]);
-        diffEncoder1 = -(encoder_measurements[1]-self.last_encoder_measurements[1]);
+        diffEncoder0 = +(-encoder_measurements[0]+self.last_encoder_measurements[0]);
+        diffEncoder1 = -(-encoder_measurements[1]+self.last_encoder_measurements[1]);
         
         # At the first iteration, zero out
         if abs(diffEncoder0)> 1000 or abs(diffEncoder1)> 1000:
@@ -258,7 +258,7 @@ class E160_robot:
 
         # Calculate v x dt and w x dt
         delta_s = 0.5 * (wheelDistanceR + wheelDistanceL);
-        delta_theta = 0.5 / self.radius * (wheelDistanceR - wheelDistanceL);
+        delta_theta = -0.5 / self.radius * (wheelDistanceR - wheelDistanceL);
 
         
         # ****************** Additional Student Code: End ************

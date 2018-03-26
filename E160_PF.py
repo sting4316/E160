@@ -12,7 +12,7 @@ class E160_PF:
     def __init__(self, environment, robotWidth, wheel_radius, encoder_resolution):
         self.particles = []
         self.environment = environment
-        self.numParticles = 350
+        self.numParticles = 300
         
         # maybe should just pass in a robot class?
         self.robotWidth = robotWidth
@@ -23,8 +23,8 @@ class E160_PF:
         self.FAR_READING = 1000
         
         # PF parameters
-        self.IR_sigma = 0.15 # Range finder s.d
-        self.odom_xy_sigma = 100   # odometry delta_s s.d
+        self.IR_sigma = 0.1 # Range finder s.d
+        self.odom_xy_sigma = 150   # odometry delta_s s.d
         self.odom_heading_sigma = 0.75  # odometry heading s.d
         self.particle_weight_sum = 0
 
@@ -53,8 +53,8 @@ class E160_PF:
                 None'''
         self.particles = []
         for i in range(0, self.numParticles):
-            #self.SetRandomStartPos(i)
-            self.SetKnownStartPos(i)
+            self.SetRandomStartPos(i)
+            #self.SetKnownStartPos(i)
 
             
     def SetRandomStartPos(self, i):
@@ -87,8 +87,7 @@ class E160_PF:
                 None'''
         
         # add student code here 
-        thresh = 25
-        if abs(encoder_measurements[0] - self.last_encoder_measurements[0]) > thresh or abs(encoder_measurements[1] - self.last_encoder_measurements[1]) > thresh:
+        if encoder_measurements != self.last_encoder_measurements:
             for i in range(0, self.numParticles):
                 self.Propagate(encoder_measurements, i)
                 self.particles[i].weight = self.CalculateWeight(sensor_readings, self.walls, self.particles[i])
@@ -99,10 +98,7 @@ class E160_PF:
             self.last_encoder_measurements[1] = encoder_measurements[1]
 
             #Only resample if a new sensor measurement is read
-            thresh2 = 2
-            if abs(sensor_readings[0] - self.last_sensor_reading[0]) > thresh2 or abs(sensor_readings[1] - self.last_sensor_reading[1]) > thresh2 or abs(sensor_readings[2] - self.last_sensor_reading[2]) > thresh2:
-          
-            #if sensor_readings != self.last_sensor_reading:
+            if sensor_readings != self.last_sensor_reading:
                 self.Resample()
                 self.last_sensor_reading = sensor_readings
         
@@ -233,7 +229,6 @@ class E160_PF:
             w_sum = old_particles[j].weight
             while w_sum < r:
                 j = j +1
-                print(len(old_particles))
                 w_sum = w_sum + old_particles[j].weight
             self.particles[i].x = old_particles[j].x
             self.particles[i].y = old_particles[j].y
