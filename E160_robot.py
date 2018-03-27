@@ -24,7 +24,6 @@ class E160_robot:
         self.radius = 0.147 / 2
         self.width = 2*self.radius
         self.wheel_radius = 0.03
-        self.wheel_circumference = 2*math.pi*self.wheel_radius
         self.address = address
         self.ID = self.address.encode().__str__()[-1]
         self.last_measurements = []
@@ -44,28 +43,7 @@ class E160_robot:
         self.Kpho = 1#1.0
         self.Kalpha = 2#2.0
         self.Kbeta = -0.5#-0.5
-        self.max_velocity = 0.1
-        self.point_tracked = True
-        self.encoder_per_sec_to_rad_per_sec = 10
-
-        self.current_point = -1
-
-        if self.environment.robot_mode == "SIMULATION MODE":
-            self.Kpho = 3#2#1.0
-            self.Kalpha = 8#10#2.0
-            self.Kbeta = -1.5#-4#-0.5
-            self.Kp = 2
-            self.distance_threshold = 0.001
-            self.angle_threshold = 0.015
-            self.point_turn_threshold = 0.0005
-        else:
-            self.Kpho = 3#2#1.0
-            self.Kalpha = 8#10#2.0
-            self.Kbeta = -1.5#-4#-0.5
-            self.Kp = 1.2
-            self.distance_threshold = 0.05
-            self.angle_threshold = 0.1
-            self.point_turn_threshold = 0.01
+        self.max_velocity = 0.05
         self.point_tracked = True
         self.encoder_per_sec_to_rad_per_sec = 10
 
@@ -114,7 +92,27 @@ class E160_robot:
             data = [int(x) for x in data]
             encoder_measurements = data[-2:]
             range_measurements = data[:-2]
-            
+
+            range_measurements = [pow((range_measurement)/(1.96*pow(10,4)), (-(1.0/1.051))) for range_measurement in range_measurements]
+            for stuff in range(len(range_measurements)):
+                range_measurements[stuff] = range_measurements[stuff]/100
+
+            old_range_measurements = [0,0,0]
+            for shit in range(len(range_measurements)):
+                old_range_measurements[shit] = range_measurements[shit]
+
+            range_measurements[0] = old_range_measurements[1]
+            range_measurements[1] = old_range_measurements[0]
+
+            for yee in range(len(range_measurements)):
+                range_measurements[yee] = range_measurements[yee] + (self.radius/2)
+                if range_measurements[yee] > 0.8:
+                    range_measurements[yee] = 0.8
+            range_measurements[0] = range_measurements[0] + 0.06
+            range_measurements[2] = range_measurements[2] + 0.06
+            range_measurements[1] = range_measurements[1] + 0.06
+
+
         elif self.environment.robot_mode == "SIMULATION MODE":
             encoder_measurements = self.simulate_encoders(self.R, self.L, deltaT)
             sensor1 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[0])
@@ -160,61 +158,9 @@ class E160_robot:
 
             
             ############ Student code goes here ############################################
-            delta_x = self.state_des.x - self.state_est.x
-            delta_y = self.state_des.y - self.state_est.y
-
-            delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
-
-            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-            rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-
-            if rho <= self.point_turn_threshold and delta_theta > self.angle_threshold:
-                desiredV = 0
-                desiredW = self.Kp*(self.angle_wrap(self.state_des.theta - self.state_est.theta))
-            else:
-                if alpha > -math.pi/2 and alpha <= math.pi/2:
-                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
-                    beta = self.angle_wrap(-self.state_est.theta -alpha)
-
-                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
-
-                    desiredV = self.Kpho*rho
-                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                    #print('Forward loop')
-                else:
-                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
-                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
-                    beta = self.angle_wrap(-self.state_est.theta -alpha)
-
-                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
-
-                    desiredV = -self.Kpho*rho
-                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
-                    #print('Reverse Loop')
-
-            # A positive omega des should result in a positive spin
-            desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
-            desiredRotRateL = -desiredV/self.wheel_radius - self.radius*desiredW/self.wheel_radius
-
-
-            if abs(desiredRotRateR*self.wheel_radius) > self.max_velocity or abs(desiredRotRateL*self.wheel_radius) > self.max_velocity:
-                #print('Max Velocity at', rho, delta_theta)
-                scaling_factor = self.max_velocity/max(abs(desiredRotRateR*self.wheel_radius), abs(desiredRotRateL*self.wheel_radius))
-                desiredRotRateR *= scaling_factor
-                desiredRotRateL *= scaling_factor
-
-
-            desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
-            desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
-
-            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
-                print('Reached Point')
-                desiredWheelSpeedR = 0
-                desiredWheelSpeedL = 0
-                self.point_tracked = True
             
             
+            pass 
         # the desired point has been tracked, so don't move
         else:
             desiredWheelSpeedR = 0
@@ -261,7 +207,7 @@ class E160_robot:
 
     def make_headers(self):
         f = open(self.file_name, 'a+')
-        f.write('{0} {1:^1} {2:^1} {3:^1} {4:^1} \n'.format('R1', 'R2', 'R3', 'RW', 'LW'))
+        f.write('{0} {1:^1} \n'.format('pf', 'draw'))
         f.close()
 
         
@@ -270,7 +216,7 @@ class E160_robot:
         f = open(self.file_name, 'a+')
         
         # edit this line to have data logging of the data you care about
-        data = [str(x) for x in [1,2,3,4,5]]
+        data = [str(x) for x in [self.state_est, self.state_draw]]
         
         f.write(' '.join(data) + '\n')
         f.close()
@@ -279,7 +225,7 @@ class E160_robot:
     def set_manual_control_motors(self, R, L):
         
         self.manual_control_right_motor = int(R*256/100)
-        self.manual_control_left_motor = int(L*256/100)                                                         
+        self.manual_control_left_motor = int(L*274/100)                                                         
    
 
 
@@ -292,8 +238,8 @@ class E160_robot:
 
 
         # Calculate difference in movement from last time step
-        diffEncoder0 = +(encoder_measurements[0]-self.last_encoder_measurements[0]);
-        diffEncoder1 = -(encoder_measurements[1]-self.last_encoder_measurements[1]);
+        diffEncoder0 = +(-encoder_measurements[0]+self.last_encoder_measurements[0]);
+        diffEncoder1 = -(-encoder_measurements[1]+self.last_encoder_measurements[1]);
         
         # At the first iteration, zero out
         if abs(diffEncoder0)> 1000 or abs(diffEncoder1)> 1000:
@@ -313,7 +259,7 @@ class E160_robot:
 
         # Calculate v x dt and w x dt
         delta_s = 0.5 * (wheelDistanceR + wheelDistanceL);
-        delta_theta = 0.5 / self.radius * (wheelDistanceR - wheelDistanceL);
+        delta_theta = -0.5 / self.radius * (wheelDistanceR - wheelDistanceL);
 
         
         # ****************** Additional Student Code: End ************

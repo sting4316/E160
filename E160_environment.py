@@ -15,10 +15,12 @@ class E160_environment:
         
         # set up walls, putting top left point first
         self.walls = []
-        self.walls.append(E160_wall([-0.5, 0.5, -0.5, -0.5],"vertical"))
-        self.walls.append(E160_wall([0.5, 0.5, 0.5, -0.5],"vertical"))
-        self.walls.append(E160_wall([-0.5, 0.5, 0.5, 0.5],"horizontal"))
-        # self.walls.append(E160_wall([0.5, -0.5, 1, -0.5],"horizontal"))
+        self.walls.append(E160_wall([-0.35, 0.35, -0.35, -0.35],"vertical"))
+        self.walls.append(E160_wall([0.35, 0.35, 0.35, -0.35],"vertical"))
+        self.walls.append(E160_wall([-0.35, 0.35, 0.35, 0.35],"horizontal"))
+        #self.walls.append(E160_wall([-0.35, -0.35, 0.35, -0.35],"horizontal"))
+        #self.walls.append(E160_wall([0, -.1, 0, -0.5],"vertical"))
+        #self.walls.append(E160_wall([0, -0.4, 1, -0.4],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.5, -1],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.0, -1.0],"vertical"))
             
@@ -28,7 +30,7 @@ class E160_environment:
 
         # setup xbee communication
         if (self.robot_mode == "HARDWARE MODE"):
-            self.serial_port = serial.Serial('/dev/tty.usbserial-DN01IWND', 9600)
+            self.serial_port = serial.Serial('COM4', 9600)
             print(" Setting up serial port")
             try:
                 self.xbee = XBee(self.serial_port)

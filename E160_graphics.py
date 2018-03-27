@@ -2,6 +2,7 @@ import math
 from tkinter import *
 from E160_robot import *
 from PIL import Image, ImageTk
+import keyboard
 
 class E160_graphics:
     
@@ -18,7 +19,7 @@ class E160_graphics:
         self.bottom_frame = Frame(self.tk)
         self.bottom_frame.pack(side = BOTTOM)
         
-        self.scale = 400
+        self.scale = 500
         self.canvas = Canvas(self.tk, width=self.environment.width*self.scale, height=self.scale* self.environment.height)
         self.tk.title("E160 - Autonomous Robot Navigation")
         self.canvas.bind("<Button-1>", self.callback)
@@ -152,6 +153,25 @@ class E160_graphics:
         self.canvas.coords(robot.image, *robot_points)
             
     def get_inputs(self):
+        if(keyboard.is_pressed('space')):
+            self.rotate_control.set(0) 
+            self.forward_control.set(0)
+        elif(keyboard.is_pressed('w')):
+            temp = self.forward_control.get() + 5
+            self.rotate_control.set(0) 
+            self.forward_control.set(temp)
+        elif (keyboard.is_pressed('s')):
+            temp = self.forward_control.get() - 5
+            self.rotate_control.set(0) 
+            self.forward_control.set(temp)
+        elif (keyboard.is_pressed('a')):
+            temp = self.rotate_control.get() - 5
+            self.forward_control.set(0) 
+            self.rotate_control.set(temp)
+        elif (keyboard.is_pressed('d')):
+            temp = self.rotate_control.get() + 5
+            self.forward_control.set(0) 
+            self.rotate_control.set(temp)
         pass
 
     def draw_particles(self, robot):
