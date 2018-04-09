@@ -62,7 +62,7 @@ class E160_robot:
         self.state_odo = self.localize(self.state_odo, delta_s, delta_theta, self.range_measurements)
 
         # localize with particle filter
-        self.state_est = self.PF.LocalizeEstWithParticleFilter(self.encoder_measurements, self.range_measurements)
+         # self.state_est = self.PF.LocalizeEstWithParticleFilter(self.encoder_measurements, self.range_measurements)
 
         # to out put the true location for display purposes only. 
         self.state_draw = self.state_odo

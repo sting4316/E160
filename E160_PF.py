@@ -39,10 +39,10 @@ class E160_PF:
         self.state.set_state(0,0,0)
 
         # TODO: change this later
-        self.map_maxX = .35
-        self.map_minX = -.35
-        self.map_maxY = .35
-        self.map_minY = -.35
+        self.map_maxX = .65
+        self.map_minX = -.65
+        self.map_maxY = .65
+        self.map_minY = -.65
         self.InitializeParticles()
         self.last_encoder_measurements =[0,0]
 
@@ -54,9 +54,9 @@ class E160_PF:
                 None'''
         self.particles = []
         for i in range(0, self.numParticles):
-            self.SetRandomStartPos(i)
+            #self.SetRandomStartPos(i)
             #self.num_randomize =  0
-            #self.SetKnownStartPos(i)
+            self.SetKnownStartPos(i)
             self.num_randomize = 7
 
             

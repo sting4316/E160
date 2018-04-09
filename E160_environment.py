@@ -10,22 +10,22 @@ class E160_environment:
 
     
     def __init__(self):
-        self.width = 2.0
-        self.height = 1.2
+        self.width = 3#2.0
+        self.height = 1.8#1.2
         
         # set up walls, putting top left point first
         self.walls = []
-        self.walls.append(E160_wall([-0.35, 0.35, -0.35, -0.35],"vertical"))
-        self.walls.append(E160_wall([0.35, 0.35, 0.35, -0.35],"vertical"))
-        self.walls.append(E160_wall([-0.35, 0.35, 0.35, 0.35],"horizontal"))
-        #self.walls.append(E160_wall([-0.35, -0.35, 0.35, -0.35],"horizontal"))
+        self.walls.append(E160_wall([-0.65, 0.65, -0.65, -0.65],"vertical"))
+        self.walls.append(E160_wall([0.65, 0.65, 0.65, -0.65],"vertical"))
+        self.walls.append(E160_wall([-0.65, 0.65, 0.65, 0.65],"horizontal"))
+        #self.walls.append(E160_wall([0, 0, 0, -0.65],"vertical"))
         #self.walls.append(E160_wall([0, -.1, 0, -0.5],"vertical"))
         #self.walls.append(E160_wall([0, -0.4, 1, -0.4],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.5, -1],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.0, -1.0],"vertical"))
             
         # create vars for hardware vs simulation
-        self.robot_mode = "SIMULATION MODE"#"SIMULATION MODE" or "HARDWARE MODE"
+        self.robot_mode = "HARDWARE MODE"#"SIMULATION MODE" or "HARDWARE MODE"
         self.control_mode = "MANUAL CONTROL MODE"
 
         # setup xbee communication
