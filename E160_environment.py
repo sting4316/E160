@@ -10,8 +10,8 @@ class E160_environment:
 
     
     def __init__(self):
-        self.width = 3#2.0
-        self.height = 1.8#1.2
+        self.width = 3.0
+        self.height = 5.0
         
         # set up walls, putting top left point first
         self.walls = []
@@ -25,7 +25,7 @@ class E160_environment:
         # self.walls.append(E160_wall([-0.5, -0.5, 0.0, -1.0],"vertical"))
             
         # create vars for hardware vs simulation
-        self.robot_mode = "HARDWARE MODE"#"SIMULATION MODE" or "HARDWARE MODE"
+        self.robot_mode = "SIMULATION MODE"#"SIMULATION MODE" or "HARDWARE MODE"
         self.control_mode = "MANUAL CONTROL MODE"
 
         # setup xbee communication

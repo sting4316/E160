@@ -225,7 +225,7 @@ class E160_robot:
     def set_manual_control_motors(self, R, L):
         
         self.manual_control_right_motor = int(R*256/100)
-        self.manual_control_left_motor = int(L*274/100)                                                         
+        self.manual_control_left_motor =int(R*256/100) #int(L*274/100)                                                         
    
 
 

@@ -1,6 +1,7 @@
 import math
 from tkinter import *
 from E160_robot import *
+from E160_graph import *
 from PIL import Image, ImageTk
 import keyboard
 
@@ -8,6 +9,7 @@ class E160_graphics:
     
     def __init__(self, environment):
         self.environment = environment
+        self.graph = E160_graph()
         self.tk = Tk()
         #self.north_east_frame = Frame(self.tk)
         #self.north_east_frame.pack(anchor = NE)
@@ -19,7 +21,7 @@ class E160_graphics:
         self.bottom_frame = Frame(self.tk)
         self.bottom_frame.pack(side = BOTTOM)
         
-        self.scale = 150
+        self.scale = 100
         self.canvas = Canvas(self.tk, width=self.environment.width*self.scale, height=self.scale* self.environment.height)
         self.tk.title("E160 - Autonomous Robot Navigation")
         self.canvas.bind("<Button-1>", self.callback)
@@ -96,13 +98,37 @@ class E160_graphics:
         self.particles_dot = [self.canvas.create_oval(0,0,0,0, fill ='black') for x in range(self.environment.robots[0].PF.numParticles)]
 
         # draw static environment
-        for w in self.environment.walls:
-            self.draw_wall(w)
-            
+        #for w in self.environment.walls:
+         #   self.draw_wall(w)
+        for n in self.graph.node_coordinates:
+            print(self.graph.node_coordinates[n])
+            self.draw_node(self.graph.node_coordinates[n])
+
+        for e in self.graph.edges:
+            self.draw_edges(e, self.graph.edges[e])
         # draw first robot
         for r in self.environment.robots:
             self.initial_draw_robot(r)    
     
+
+    def draw_node(self, node_coordinates):
+        node_radius = 0.1#.2*self.scale
+        top_left_point = (node_coordinates[0]-node_radius, node_coordinates[1]+node_radius)
+        bot_right_point = (node_coordinates[0]+node_radius, node_coordinates[1]-node_radius)
+        scaled_tl_point = self.scale_points(top_left_point, self.scale)
+        scaled_br_point = self.scale_points(bot_right_point, self.scale)
+        node_oval = self.canvas.create_oval(scaled_tl_point[0], scaled_tl_point[1], scaled_br_point[0], scaled_br_point[1], fill='blue')
+
+    def draw_edges(self, start_node, edges):
+
+        start_point = self.graph.node_coordinates[start_node]
+        scaled_start_point = self.scale_points(start_point, self.scale)
+        for edge in edges:
+            end_point = self.graph.node_coordinates[edge]
+            scaled_end_point = self.scale_points(end_point, self.scale)
+            edge_line = self.canvas.create_line(scaled_start_point[0], scaled_start_point[1], scaled_end_point[0], scaled_end_point[1])
+
+
     
 
     def draw_wall(self, wall):
