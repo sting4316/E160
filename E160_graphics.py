@@ -32,6 +32,8 @@ class E160_graphics:
         self.R = 0
         self.L = 0
 
+        self.points_id = 0
+
         
         # add motor control slider
         self.forward_control = Scale(self.bottom_frame, from_=-100, to=100, length  = 400,label="Forward Control",tickinterval=50, orient=HORIZONTAL)
@@ -167,16 +169,21 @@ class E160_graphics:
     def initial_draw_robot(self, robot):
             
         # open image
-        robot.robot_gif = Image.open("E160_robot_image.gif").convert('RGBA') 
-
+        robot.robot_gif = Image.open("E160_robot_image.gif").convert('RGBA')
+        drawing_points = self.scale_points([robot.state_draw.x+0.1, robot.state_draw.y+0.1], self.scale)
+        self.points_id = self.canvas.create_text(*drawing_points, fill = "cyan", text = str(robot.battery_life))
+       
         
     def draw_robot(self, robot):
         
         # gif update
+        self.canvas.delete(self.points_id)
         robot.tkimage = ImageTk.PhotoImage(robot.robot_gif.rotate(180/3.14*robot.state_draw.theta))
         robot.image = self.canvas.create_image(robot.state_draw.x, robot.state_draw.y, image=robot.tkimage)
         robot_points = self.scale_points([robot.state_draw.x, robot.state_draw.y], self.scale)
+        drawing_points = self.scale_points([robot.state_draw.x+0.1, robot.state_draw.y+0.1], self.scale)
         self.canvas.coords(robot.image, *robot_points)
+        self.points_id = self.canvas.create_text(*drawing_points, fill = "cyan", text = str(robot.battery_life)) 
             
     def get_inputs(self):
         if(keyboard.is_pressed('space')):
@@ -331,12 +338,3 @@ class E160_graphics:
             return True
         
         
-        
-    
-    
-    
-   
-
-
-
-

@@ -1,7 +1,6 @@
-
 class E160_graph:
 
-	def __init__ (self, ):
+	def __init__ (self):
 
 		scale = 1
 
@@ -18,5 +17,3 @@ class E160_graph:
 		self.tour_nodes = (2, 3, 4, 5, 6)
 
 		
-		return
-

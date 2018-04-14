@@ -1,4 +1,3 @@
-
 from E160_state import *
 from E160_PF import *
 import math
@@ -48,6 +47,12 @@ class E160_robot:
         self.encoder_per_sec_to_rad_per_sec = 10
 
         self.PF = E160_PF(environment, self.width, self.wheel_radius, self.encoder_resolution)
+
+
+        #add battery life stuff
+        self.battery_life = 90
+        self.discharge_rate = 0.4
+        self.recharge_rate = 3
         
         
     def update(self, deltaT):
@@ -64,11 +69,14 @@ class E160_robot:
         # localize with particle filter
          # self.state_est = self.PF.LocalizeEstWithParticleFilter(self.encoder_measurements, self.range_measurements)
 
+        #update battery life of robot
+        self.update_battery()
+
         # to out put the true location for display purposes only. 
         self.state_draw = self.state_odo
 
         # call motion planner
-        # self.motion_planner.update_plan()
+        #self.motion_planner.update_plan()
         
         # determine new control signals
         self.R, self.L = self.update_control(self.range_measurements)
@@ -282,10 +290,25 @@ class E160_robot:
             
         # keep this to return the updated state
         return state
-        
-        
-        
-        
-        
-        
-        
+
+
+
+    #update battery life function
+    def update_battery(self):
+        if self.battery_life > 100:
+            self.battery_life = 100
+        elif self.battery_life == 100 and self.state_odo.x == 0 and self.state_odo.y == 0:
+            self.battery_life = 100
+
+        elif self.battery_life < 0:
+            self.battery_life = 0
+
+        elif self.battery_life == 0 and self.state_odo.x != 0 and self.state_odo.y != 0:
+            self.battery_life = 0            
+
+        elif self.state_odo.x == 0:
+            if self.state_odo.y == 0:
+                self.battery_life += self.recharge_rate
+
+        else:
+            self.battery_life -= self.discharge_rate

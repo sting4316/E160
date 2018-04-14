@@ -1,6 +1,7 @@
 from E160_robot import *
 from E160_state import *
 from E160_wall import *
+from E160_graph import *
 import serial
 import time
 from xbee import XBee
@@ -23,6 +24,10 @@ class E160_environment:
         #self.walls.append(E160_wall([0, -0.4, 1, -0.4],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.5, -1],"horizontal"))
         # self.walls.append(E160_wall([-0.5, -0.5, 0.0, -1.0],"vertical"))
+
+        #initialize graph
+        self.graph = E160_graph()
+
             
         # create vars for hardware vs simulation
         self.robot_mode = "SIMULATION MODE"#"SIMULATION MODE" or "HARDWARE MODE"
@@ -64,6 +69,7 @@ class E160_environment:
     def quit(self):
         self.xbee.halt()
         self.serial.close()
+            
             
             
             
