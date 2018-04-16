@@ -1,20 +1,23 @@
 from E160_state import *
 from E160_PF import *
+from E160_MP import *
 import math
 import datetime
 
 class E160_robot:
-
-    def __init__(self, environment, address, robot_id):
+    def __init__(self, environment, graph, address, robot_id):
         self.environment = environment
+        self.graph = graph
+        self.node_des = robot_id+1
         self.state_est = E160_state()
-        self.state_est.set_state(0,0,0)
+        init_xy = self.graph.get_coordinates(robot_id+1)
+        self.state_est.set_state(init_xy[0], init_xy[1], 0)
         self.state_des = E160_state()
-        self.state_des.set_state(0,0,0)
+        self.state_des.set_state(init_xy[0], init_xy[1], 0)
         self.state_draw = E160_state()
-        self.state_draw.set_state(0,0,0)        
+        self.state_draw.set_state(init_xy[0], init_xy[1], 0)        
         self.state_odo = E160_state()
-        self.state_odo.set_state(0,0,0) # real position for simulation
+        self.state_odo.set_state(init_xy[0], init_xy[1], 0) # real position for simulation
 
         #self.v = 0.05
         #self.w = 0.1
@@ -42,20 +45,42 @@ class E160_robot:
         self.Kpho = 1#1.0
         self.Kalpha = 2#2.0
         self.Kbeta = -0.5#-0.5
-        self.max_velocity = 0.05
-        self.point_tracked = True
+        self.max_velocity = 0.7
+
+        self.point_tracked = False
         self.encoder_per_sec_to_rad_per_sec = 10
 
-        self.PF = E160_PF(environment, self.width, self.wheel_radius, self.encoder_resolution)
+        #self.PF = E160_PF(environment, self.width, self.wheel_radius, self.encoder_resolution)
+        self.MP = E160_MP()
 
 
         #add battery life stuff
         self.battery_life = 90
-        self.discharge_rate = 0.4
-        self.recharge_rate = 3
+        self.discharge_rate = 0.1
+        self.recharge_rate = 0.5
+        self.recharge_threshold = 0.05
         
-        
-    def update(self, deltaT):
+        self.current_point = -1
+        self.path_tracking = False
+
+        if self.environment.robot_mode == "SIMULATION MODE":
+            self.Kpho = 3#2#1.0
+            self.Kalpha = 8#10#2.0
+            self.Kbeta = -1.5#-4#-0.5
+            self.Kp = 2
+            self.distance_threshold = 0.001
+            self.angle_threshold = 0.015
+            self.point_turn_threshold = 0.0005
+        else:
+            self.Kpho = 3#2#1.0
+            self.Kalpha = 8#10#2.0
+            self.Kbeta = -1.5#-4#-0.5
+            self.Kp = 1.2
+            self.distance_threshold = 0.05
+            self.angle_threshold = 0.1
+            self.point_turn_threshold = 0.01
+
+    def update(self, deltaT, graph, batteries):
         
         # get sensor measurements
         self.encoder_measurements, self.range_measurements = self.update_sensor_measurements(deltaT)
@@ -68,6 +93,7 @@ class E160_robot:
 
         # localize with particle filter
          # self.state_est = self.PF.LocalizeEstWithParticleFilter(self.encoder_measurements, self.range_measurements)
+        self.state_est = self.update_state(self.state_est, delta_s, delta_theta)
 
         #update battery life of robot
         self.update_battery()
@@ -76,7 +102,13 @@ class E160_robot:
         self.state_draw = self.state_odo
 
         # call motion planner
-        #self.motion_planner.update_plan()
+        if self.point_tracked:
+            self.node_des = self.MP.update_plan(graph, self.node_des, self.battery_life, batteries)
+            node_coordinates = self.graph.get_coordinates(self.node_des)
+            self.state_des.set_state(node_coordinates[0],node_coordinates[1],0)
+            print('xy: ', self.state_des.x, self.state_des.y)
+            self.point_tracked = False
+
         
         # determine new control signals
         self.R, self.L = self.update_control(self.range_measurements)
@@ -123,10 +155,10 @@ class E160_robot:
 
         elif self.environment.robot_mode == "SIMULATION MODE":
             encoder_measurements = self.simulate_encoders(self.R, self.L, deltaT)
-            sensor1 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[0])
-            sensor2 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[1])
-            sensor3 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[2])
-            range_measurements = [sensor1, sensor2, sensor3]
+   #         sensor1 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[0])
+    #        sensor2 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[1])
+     #       sensor3 = self.simulate_range_finder(self.state_odo, self.PF.sensor_orientation[2])
+            range_measurements = [0, 0, 0]
         
         return encoder_measurements, range_measurements
 
@@ -154,6 +186,7 @@ class E160_robot:
             
         elif self.environment.control_mode == "AUTONOMOUS CONTROL MODE":   
             desiredWheelSpeedR, desiredWheelSpeedL = self.point_tracker_control()
+            #print('Wheel Speeds: ', desiredWheelSpeedR, desiredWheelSpeedL)
             
         return desiredWheelSpeedR, desiredWheelSpeedL
   
@@ -166,7 +199,60 @@ class E160_robot:
 
             
             ############ Student code goes here ############################################
-            
+            delta_x = self.state_des.x - self.state_est.x
+            delta_y = self.state_des.y - self.state_est.y
+            #print('Deltas: ', delta_x, delta_y)
+
+            delta_theta = abs(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+
+            alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
+            rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+
+            if rho <= self.point_turn_threshold and delta_theta > self.angle_threshold:
+                desiredV = 0
+                desiredW = self.Kp*(self.angle_wrap(self.state_des.theta - self.state_est.theta))
+            else:
+                if alpha > -math.pi/2 and alpha <= math.pi/2:
+                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(delta_y, delta_x)))
+                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+
+                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+
+                    desiredV = self.Kpho*rho
+                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
+                    #print('Forward loop')
+                else:
+                    rho = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+                    alpha = self.angle_wrap(-self.state_est.theta + self.angle_wrap(math.atan2(-delta_y, -delta_x)))
+                    beta = self.angle_wrap(-self.state_est.theta -alpha)
+
+                    beta = self.angle_wrap(beta + self.angle_wrap(self.state_des.theta))
+
+                    desiredV = -self.Kpho*rho
+                    desiredW = self.Kalpha*alpha + self.Kbeta*beta
+                    #print('Reverse Loop')
+
+            # A positive omega des should result in a positive spin
+            desiredRotRateR = -desiredV/self.wheel_radius + self.radius*desiredW/self.wheel_radius
+            desiredRotRateL = -desiredV/self.wheel_radius - self.radius*desiredW/self.wheel_radius
+
+
+            if abs(desiredRotRateR*self.wheel_radius) > self.max_velocity or abs(desiredRotRateL*self.wheel_radius) > self.max_velocity:
+                #print('Max Velocity at', rho, delta_theta)
+                scaling_factor = self.max_velocity/max(abs(desiredRotRateR*self.wheel_radius), abs(desiredRotRateL*self.wheel_radius))
+                desiredRotRateR *= scaling_factor
+                desiredRotRateL *= scaling_factor
+
+
+            desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
+            desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
+
+            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
+                print('Reached Point')
+                desiredWheelSpeedR = 0
+                desiredWheelSpeedL = 0
+                self.point_tracked = True
             
             pass 
         # the desired point has been tracked, so don't move
@@ -295,20 +381,25 @@ class E160_robot:
 
     #update battery life function
     def update_battery(self):
-        if self.battery_life > 100:
-            self.battery_life = 100
-        elif self.battery_life == 100 and self.state_odo.x == 0 and self.state_odo.y == 0:
-            self.battery_life = 100
+        old_battery_life = self.battery_life
 
-        elif self.battery_life < 0:
-            self.battery_life = 0
-
-        elif self.battery_life == 0 and self.state_odo.x != 0 and self.state_odo.y != 0:
-            self.battery_life = 0            
-
-        elif self.state_odo.x == 0:
-            if self.state_odo.y == 0:
-                self.battery_life += self.recharge_rate
-
+        if self.node_des in self.graph.recharge_nodes or self.node_des == self.graph.recharge_nodes:
+            if self.at_node():
+                new_battery_life = old_battery_life + self.recharge_rate
+                self.battery_life = min(new_battery_life, 100)
+            else:
+                new_battery_life = old_battery_life - self.discharge_rate
+                self.battery_life = max(new_battery_life, 0)
         else:
-            self.battery_life -= self.discharge_rate
+            new_battery_life = old_battery_life - self.discharge_rate
+            self.battery_life = max(new_battery_life, 0)
+
+    def at_node(self):
+        delta_x = self.state_des.x - self.state_est.x
+        delta_y = self.state_des.y - self.state_est.y
+        dist = pow(pow(delta_x, 2) + pow(delta_y, 2), .5)
+
+        if dist < self.recharge_threshold:
+            return True
+        else:
+            return False

@@ -97,7 +97,7 @@ class E160_graphics:
         self.theta_des_entry.pack()
         
         # initilize particle representation
-        self.particles_dot = [self.canvas.create_oval(0,0,0,0, fill ='black') for x in range(self.environment.robots[0].PF.numParticles)]
+        #self.particles_dot = [self.canvas.create_oval(0,0,0,0, fill ='black') for x in range(self.environment.robots[0].PF.numParticles)]
 
         # draw static environment
         #for w in self.environment.walls:
@@ -316,7 +316,7 @@ class E160_graphics:
             self.draw_robot(r)     
         
         # draw particles
-        self.draw_particles(self.environment.robots[0])
+        #self.draw_particles(self.environment.robots[0])
         
         # draw sensors
         

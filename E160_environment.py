@@ -31,7 +31,7 @@ class E160_environment:
             
         # create vars for hardware vs simulation
         self.robot_mode = "SIMULATION MODE"#"SIMULATION MODE" or "HARDWARE MODE"
-        self.control_mode = "MANUAL CONTROL MODE"
+        self.control_mode = "AUTONOMOUS CONTROL MODE"
 
         # setup xbee communication
         if (self.robot_mode == "HARDWARE MODE"):
@@ -43,13 +43,22 @@ class E160_environment:
                 print("Couldn't find the serial port")
         
         # Setup the robots
-        self.num_robots = 1
+        self.num_robots = 2
         self.robots = []
+        self.graph.occupied_nodes = []
+        self.batteries = []
         for i in range (0,self.num_robots):
             
             # TODO: assign different address to each bot
-            r = E160_robot(self, '\x00\x0C', i)
+            if i == 0:
+                address = '\x00\x0C'
+            else:
+                address = '\x00\x0D'
+            r = E160_robot(self, self.graph, address, i)
             self.robots.append(r)
+            self.graph.occupied_nodes.append(i+1)
+            self.batteries.append(r.battery_life)
+            print(r)
     
     def update_robots(self, deltaT):
         
@@ -57,7 +66,10 @@ class E160_environment:
         for r in self.robots:
             
             # set the control actuation
-            r.update(deltaT)
+            r.update(deltaT, self.graph, self.batteries)
+            self.graph.update_occupied_nodes(self.robots)
+        
+        self.update_battery_lives(self.robots)
         
         
     def log_data(self):
@@ -69,6 +81,11 @@ class E160_environment:
     def quit(self):
         self.xbee.halt()
         self.serial.close()
+
+    def update_battery_lives(self, robots):
+        self.batteries =[]
+        for r in robots:
+            self.batteries.append(r.battery_life)
             
             
             
