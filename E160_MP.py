@@ -76,19 +76,19 @@ class E160_MP:
 
             print('Tour Transistions: ', unoccupied_tour_transitions)
             print('Recharge Transistions: ', unoccupied_recharge_transitions)
-            if unoccupied_recharge_transitions is None or unoccupied_recharge_transitions == [] and unoccupied_tour_transitions is None or unoccupied_tour_transitions == []:
+            if (unoccupied_recharge_transitions is None or unoccupied_recharge_transitions == []) and (unoccupied_tour_transitions is None or unoccupied_tour_transitions == []):
                 print('TOUR - NO TOUR AND NO RECHARGE')
                 T[current_node-1][current_node-1] = 1
 
 
-            elif unoccupied_recharge_transitions is not None  or unoccupied_recharge_transitions != [] and unoccupied_tour_transitions is None or unoccupied_tour_transitions == []:
+            elif (unoccupied_recharge_transitions is not None  or unoccupied_recharge_transitions != []) and (unoccupied_tour_transitions is None or unoccupied_tour_transitions == []):
                 print('TOUR - NO TOUR BUT RECHARGE')
                 T[current_node-1][current_node-1] = p_tour
 
                 for i in range(0, len(unoccupied_recharge_transitions)):
                     T[current_node-1][unoccupied_recharge_transitions[i]-1] = p_recharge/(len(unoccupied_recharge_transitions))
 
-            elif unoccupied_recharge_transitions is None or unoccupied_recharge_transitions == [] and unoccupied_tour_transitions is not None or unoccupied_tour_transitions != []:
+            elif (unoccupied_recharge_transitions is None or unoccupied_recharge_transitions == []) and (unoccupied_tour_transitions is not None or unoccupied_tour_transitions != []):
 
                 print('TOUR - TOUR BUT NO RECHARGE')
                 T[current_node-1][current_node-1] = p_recharge

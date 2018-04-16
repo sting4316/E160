@@ -50,11 +50,7 @@ class E160_environment:
         for i in range (0,self.num_robots):
             
             # TODO: assign different address to each bot
-            if i == 0:
-                address = '\x00\x0C'
-            else:
-                address = '\x00\x0D'
-            r = E160_robot(self, self.graph, address, i)
+            r = E160_robot(self, self.graph, '\x00\x0C', i)
             self.robots.append(r)
             self.graph.occupied_nodes.append(i+1)
             self.batteries.append(r.battery_life)
