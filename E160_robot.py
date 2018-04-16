@@ -45,7 +45,7 @@ class E160_robot:
         self.Kpho = 1#1.0
         self.Kalpha = 2#2.0
         self.Kbeta = -0.5#-0.5
-        self.max_velocity = 0.7
+        self.max_velocity = 1
 
         self.point_tracked = False
         self.encoder_per_sec_to_rad_per_sec = 10
@@ -68,7 +68,7 @@ class E160_robot:
             self.Kalpha = 8#10#2.0
             self.Kbeta = -1.5#-4#-0.5
             self.Kp = 2
-            self.distance_threshold = 0.001
+            self.distance_threshold = 0.005
             self.angle_threshold = 0.015
             self.point_turn_threshold = 0.0005
         else:
@@ -248,7 +248,7 @@ class E160_robot:
             desiredWheelSpeedR = desiredRotRateR*(256/(5*math.pi))
             desiredWheelSpeedL = desiredRotRateL*(256/(5*math.pi))
 
-            if rho < self.distance_threshold and abs(delta_theta) < self.angle_threshold:
+            if rho < self.distance_threshold: #and abs(delta_theta) < self.angle_threshold:
                 print('Reached Point')
                 desiredWheelSpeedR = 0
                 desiredWheelSpeedL = 0

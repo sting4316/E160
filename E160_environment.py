@@ -43,7 +43,7 @@ class E160_environment:
                 print("Couldn't find the serial port")
         
         # Setup the robots
-        self.num_robots = 2
+        self.num_robots = 3
         self.robots = []
         self.graph.occupied_nodes = []
         self.batteries = []

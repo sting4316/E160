@@ -32,7 +32,7 @@ class E160_graphics:
         self.R = 0
         self.L = 0
 
-        self.points_id = 0
+        self.points_id = []
 
         
         # add motor control slider
@@ -109,8 +109,10 @@ class E160_graphics:
         for e in self.graph.edges:
             self.draw_edges(e, self.graph.edges[e])
         # draw first robot
+        i = 0
         for r in self.environment.robots:
-            self.initial_draw_robot(r)    
+            self.initial_draw_robot(r, i)
+            i += 1
     
 
     def draw_node(self, node_coordinates):
@@ -166,24 +168,30 @@ class E160_graphics:
         return reverse_scaled_points
     
     
-    def initial_draw_robot(self, robot):
+    def initial_draw_robot(self, robot, i):
             
         # open image
         robot.robot_gif = Image.open("E160_robot_image.gif").convert('RGBA')
         drawing_points = self.scale_points([robot.state_draw.x+0.1, robot.state_draw.y+0.1], self.scale)
-        self.points_id = self.canvas.create_text(*drawing_points, fill = "cyan", text = str(robot.battery_life))
+        point_id = self.canvas.create_text(drawing_points, fill = "cyan", text ='%.2f' %  robot.battery_life)
+        self.points_id.append(point_id)
        
         
-    def draw_robot(self, robot):
+    def draw_robot(self, robot, i):
         
         # gif update
-        self.canvas.delete(self.points_id)
+
         robot.tkimage = ImageTk.PhotoImage(robot.robot_gif.rotate(180/3.14*robot.state_draw.theta))
         robot.image = self.canvas.create_image(robot.state_draw.x, robot.state_draw.y, image=robot.tkimage)
         robot_points = self.scale_points([robot.state_draw.x, robot.state_draw.y], self.scale)
         drawing_points = self.scale_points([robot.state_draw.x+0.1, robot.state_draw.y+0.1], self.scale)
-        self.canvas.coords(robot.image, *robot_points)
-        self.points_id = self.canvas.create_text(*drawing_points, fill = "cyan", text = str(robot.battery_life)) 
+        self.canvas.coords(robot.image, robot_points)
+        self.canvas.delete(self.points_id[i])
+        self.points_id[i] = self.canvas.create_text(drawing_points, fill = "cyan", text = '%.2f' %  robot.battery_life) 
+       
+
+        #if robot == self.environment.robots[-1]:
+
             
     def get_inputs(self):
         if(keyboard.is_pressed('space')):
@@ -312,8 +320,10 @@ class E160_graphics:
         self.update_labels()
         
         # draw robots
+        i = 0
         for r in self.environment.robots:
-            self.draw_robot(r)     
+            self.draw_robot(r, i)
+            i += 1     
         
         # draw particles
         #self.draw_particles(self.environment.robots[0])
