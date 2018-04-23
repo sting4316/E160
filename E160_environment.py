@@ -47,6 +47,9 @@ class E160_environment:
         self.robots = []
         self.graph.occupied_nodes = []
         self.batteries = []
+
+        self.adds = []
+
         for i in range (0,self.num_robots):
             
             # TODO: assign different address to each bot

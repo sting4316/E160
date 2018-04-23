@@ -301,7 +301,7 @@ class E160_robot:
 
     def make_headers(self):
         f = open(self.file_name, 'a+')
-        f.write('{0} {1:^1} \n'.format('pf', 'draw'))
+        f.write('{0:^0} {1:^1} {2:^2} {3:^3} \n'.format('StateX', 'StateY', 'NodeDes', 'BatteryLife'))
         f.close()
 
         
@@ -310,7 +310,7 @@ class E160_robot:
         f = open(self.file_name, 'a+')
         
         # edit this line to have data logging of the data you care about
-        data = [str(x) for x in [self.state_est, self.state_draw]]
+        data = ['%.2f' % x for x in [self.state_est.x, self.state_est.y, self.node_des, self.battery_life]]
         
         f.write(' '.join(data) + '\n')
         f.close()

@@ -1,3 +1,0 @@
-pf draw 
-<E160_state.E160_state object at 0x0000018DE106A588> <E160_state.E160_state object at 0x0000018DE10E75C0>
-<E160_state.E160_state object at 0x0000018DE106A588> <E160_state.E160_state object at 0x0000018DE10E75C0>

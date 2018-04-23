@@ -1,8 +1,0 @@
-pf draw 
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
-<E160_state.E160_state object at 0x000001657DA1B438> <E160_state.E160_state object at 0x000001657DC7D0F0>
